@@ -2,6 +2,10 @@
 
 Divine Gold Flip is a single-player browser card game. One human player plays against three AI opponents, and round scores are saved locally in the browser.
 
+## Play Online
+
+Playable link: [Divine Gold Flip](http://allen.lian.pages.git.ringcentral.com/divine-gold-flip/)
+
 ## Run
 
 Open `index.html` directly in a browser, or start a static server from the project directory:
@@ -11,6 +15,12 @@ python3 -m http.server 4173
 ```
 
 Then visit `http://localhost:4173`.
+
+## GitLab Pages
+
+This repository publishes the static game through GitLab Pages. The pipeline copies `index.html`, `game.js`, and `styles.css` into the `public/` artifact.
+
+After the `pages` job succeeds, make sure project Pages access is set to Everyone in GitLab: Settings -> General -> Visibility, project features, permissions -> Pages.
 
 ## Implemented Rules
 
