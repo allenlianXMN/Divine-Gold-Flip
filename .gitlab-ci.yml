@@ -1,8 +1,10 @@
 pages:
   stage: deploy
+  image: alpine:latest
   script:
     - mkdir -p public
     - cp index.html game.js styles.css public/
+  pages: true
   artifacts:
     paths:
       - public
