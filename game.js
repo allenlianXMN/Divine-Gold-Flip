@@ -15,21 +15,32 @@ const AI_DRAW_PLAY_DELAY = 2000;
 const AI_DRAW_PASS_DELAY = 1400;
 const HUMAN_CARD_ANIMATION_MS = 760;
 const AI_CARD_ANIMATION_MS = 1150;
-const MUSIC_BPM = 96;
+const MUSIC_BPM = 132;
 const MUSIC_STEP_SECONDS = 60 / MUSIC_BPM / 2;
-const MUSIC_VOLUME = 0.24;
-const MUSIC_LOOKAHEAD_SECONDS = 0.42;
+const MUSIC_LOOP_STEPS = 32;
+const MUSIC_VOLUME = 0.55;
+const MUSIC_STOP_CHANNEL = "divine-gold-flip:music-stop";
+const MUSIC_PREF_KEY = "divine-gold-flip:music-enabled";
+const MUSIC_OWNER_KEY = "divine-gold-flip:music-owner";
+const MUSIC_OWNER_CHECK_MS = 650;
+const MUSIC_LOCK_NAME = "divine-gold-flip:music-lock";
+const MUSIC_INSTANCE_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const MUSIC_CONTROLLER_KEY = "__divineGoldFlipMusicController";
+const MUSIC_REGISTRY_KEY = "__divineGoldFlipMusicAudios";
+const SFX_REGISTRY_KEY = "__divineGoldFlipSfxAudios";
+const MUSIC_AUDIO_ATTRIBUTE = "data-divine-gold-flip-music";
 
 let nextCardId = 1;
 let toastTimer = 0;
 let directionNoticeTimer = 0;
-let audioContext = null;
-let musicMaster = null;
-let musicTimer = 0;
-let nextMusicTime = 0;
-let musicStepIndex = 0;
+let musicAudio = null;
+let musicChannel = null;
 let musicSessionId = 0;
-const activeMusicSources = new Set();
+let musicStartPromise = null;
+let musicOwnerTimer = 0;
+let releaseMusicLock = null;
+let lastCardCueDataUrl = "";
+let victoryCueDataUrl = "";
 
 const players = [
   { names: { en: "You", zh: "你" }, shortNames: { en: "You", zh: "你" }, kind: "human", hand: [], score: 0 },
@@ -45,6 +56,7 @@ const TEXT = {
     languageButton: "中文",
     switchLanguageLabel: "Switch to Chinese",
     musicOnLabel: "Music on. Click to mute.",
+    musicReadyLabel: "Music ready. Click to mute.",
     musicOffLabel: "Music off. Click to play.",
     rulesButton: "Rules",
     round: "Round {round}",
@@ -55,6 +67,7 @@ const TEXT = {
     cardCountOne: "{count} card",
     dealerChip: "Dealer",
     calling: "Last card",
+    turnChip: "Turn",
     thinkingChip: "Thinking",
     activeSuit: "Active suit",
     drawPile: "Draw Pile",
@@ -71,6 +84,10 @@ const TEXT = {
     draw: "Draw",
     handTitle: "Your Hand",
     gameLog: "Game Log",
+    logOpenButton: "Log",
+    logCloseButton: "Close",
+    logOpenLabel: "Open game log",
+    logCloseLabel: "Close game log",
     suitModalTitle: "Choose the next suit",
     resultWin: "Win",
     resultRound: "Round",
@@ -108,6 +125,9 @@ const TEXT = {
     littleJoker: "Little Joker",
     reverse: "Reverse",
     wildSuit: "Wild Suit",
+    beastPass: "Beast Pass",
+    activeNumber: "number {number}",
+    noActiveNumber: "no active number",
     beastNames: {
       dragon: "Azure Dragon",
       tiger: "White Tiger",
@@ -119,7 +139,8 @@ const TEXT = {
       phoenix: "Bird",
     },
     effectWild: "{card} is active. Suit changed to {symbol} {suit}",
-    effectReverse: "{card} is active. Suit is {symbol} {suit}; direction changed to {icon} {direction}",
+    effectBeast: "{card} played. Active suit and number stay {symbol} {suit}, {number}",
+    effectReverse: "{card} is active. Direction changed to {icon} {direction}; active suit stays {symbol} {suit}",
     effectPlayed: "{card} played",
     specialPlaying: "{card} is being played",
     flyingCard: "{player} played",
@@ -143,6 +164,7 @@ const TEXT = {
     logFirstPlayer: "{player} acts first.",
     logPlayedCard: "{player} played {card}{effect}.",
     logEffectChosenSuit: ", chose {suit}",
+    logEffectBeast: ", kept the active suit and number",
     logEffectReverse: ", direction reversed",
     logWinner: "{player} emptied their hand and won the round.",
     logNoDraw: "{player} had no card to draw; turn ends.",
@@ -151,8 +173,9 @@ const TEXT = {
     rules: [
       ["Deck", "55 cards total: four suits with 1-9 once each for 36 number cards, 4 Big Jokers, 6 Little Jokers, and 3 each of Azure Dragon, White Tiger, and Vermilion Bird."],
       ["Basics", "One human player faces 3 AI opponents. Everyone starts with 5 cards. The player after the dealer starts, and play begins clockwise."],
-      ["Playing Cards", "Number cards must match the active suit or the number on the top card. If you have no legal card, you must draw 1 card. A playable drawn card can be played immediately."],
-      ["Special Cards", "Big Joker and the three beasts can be played anytime and choose the next active suit. Little Joker must match the active suit and reverses direction immediately."],
+      ["Playing Cards", "Number cards must match the active suit or the active number. If you have no legal card, you must draw 1 card. A playable drawn card can be played immediately."],
+      ["Special Cards", "Big Joker can be played anytime and choose the next active suit. Azure Dragon, White Tiger, and Vermilion Bird can be played as 1-9 number-card substitutes only: they do not change suit, number, or direction, so the next player still follows the previous active suit and number."],
+      ["Little Joker", "Little Joker can be played on your turn as a reverse card. It reverses direction immediately and keeps the current active suit and number unchanged."],
       ["Winning", "The first player to empty their hand wins the round and gains 1 point. Scores keep accumulating."],
     ],
   },
@@ -162,6 +185,7 @@ const TEXT = {
     languageButton: "English",
     switchLanguageLabel: "切换到英文",
     musicOnLabel: "音乐已开启，点击关闭。",
+    musicReadyLabel: "音乐已准备好，点击关闭。",
     musicOffLabel: "音乐已关闭，点击开启。",
     rulesButton: "规则",
     round: "第 {round} 局",
@@ -172,6 +196,7 @@ const TEXT = {
     cardCountOne: "{count} 张",
     dealerChip: "庄家",
     calling: "报牌",
+    turnChip: "轮到",
     thinkingChip: "思考中",
     activeSuit: "当前花色",
     drawPile: "抽牌堆",
@@ -188,6 +213,10 @@ const TEXT = {
     draw: "摸牌",
     handTitle: "你的手牌",
     gameLog: "对局记录",
+    logOpenButton: "记录",
+    logCloseButton: "收起",
+    logOpenLabel: "打开对局记录",
+    logCloseLabel: "收起对局记录",
     suitModalTitle: "指定下一轮花色",
     resultWin: "胜",
     resultRound: "局",
@@ -225,6 +254,9 @@ const TEXT = {
     littleJoker: "小王",
     reverse: "反转",
     wildSuit: "万能变色",
+    beastPass: "神兽跳过",
+    activeNumber: "数字 {number}",
+    noActiveNumber: "无生效数字",
     beastNames: {
       dragon: "青龙",
       tiger: "白虎",
@@ -236,7 +268,8 @@ const TEXT = {
       phoenix: "雀",
     },
     effectWild: "{card} 生效，当前花色改为 {symbol} {suit}",
-    effectReverse: "{card} 生效，当前花色 {symbol} {suit}，方向改为 {icon} {direction}",
+    effectBeast: "{card} 已打出，继续沿用 {symbol} {suit}、{number}",
+    effectReverse: "{card} 生效，方向改为 {icon} {direction}，继续沿用 {symbol} {suit}",
     effectPlayed: "{card} 已打出",
     specialPlaying: "{card} 正在打出",
     flyingCard: "{player} 出牌",
@@ -260,6 +293,7 @@ const TEXT = {
     logFirstPlayer: "{player} 先手行动。",
     logPlayedCard: "{player} 打出 {card}{effect}。",
     logEffectChosenSuit: "，指定 {suit}",
+    logEffectBeast: "，沿用当前花色和数字",
     logEffectReverse: "，出牌方向反转",
     logWinner: "{player} 打空手牌，赢得本局。",
     logNoDraw: "{player} 无牌可摸，回合结束。",
@@ -268,8 +302,9 @@ const TEXT = {
     rules: [
       ["牌组", "共 55 张：四种花色 1-9 各 1 张，共 36 张；大王 4 张；小王 6 张；青龙、白虎、朱雀各 3 张。"],
       ["基础玩法", "真人玩家对战 3 个 AI。每人开局 5 张手牌，庄家下家先手，默认顺时针行动。"],
-      ["出牌规则", "数字牌必须匹配当前花色或当前顶牌数字。没有可出牌时必须摸 1 张，刚摸到的牌若可出可以立刻打出。"],
-      ["特殊牌", "大王和青龙、白虎、朱雀可任意打出，并指定下一轮花色。小王需匹配当前花色，打出后立即反转方向。"],
+      ["出牌规则", "数字牌必须匹配当前花色或当前生效数字。没有可出牌时必须摸 1 张，刚摸到的牌若可出可以立刻打出。"],
+      ["特殊牌", "大王可任意打出，并指定下一轮花色。青龙、白虎、朱雀只能作为 1-9 数字普通牌的替代牌：不改变花色、不改变数字、不改变方向，相当于跳过自己，下一位仍沿用上一家的花色和数字。"],
+      ["小王", "小王在自己的回合可作为反转牌打出，打出后立即反转方向，并继续沿用当前花色和数字。"],
       ["胜负", "率先打空手牌者本局获胜并获得 1 分。分数会持续累计，不清零。"],
     ],
   },
@@ -280,6 +315,7 @@ const state = {
   deck: [],
   discard: [],
   currentSuit: "spade",
+  currentNumber: null,
   direction: 1,
   dealerIndex: 0,
   currentPlayer: 1,
@@ -295,12 +331,14 @@ const state = {
   animatingCard: null,
   lastAction: null,
   directionNotice: null,
+  isLogOpen: false,
   musicEnabled: true,
   log: [],
   aiTimer: 0,
 };
 
 const els = {
+  app: document.querySelector(".app"),
   brandMark: document.querySelector("#brandMark"),
   brandTitle: document.querySelector("#brandTitle"),
   statusLine: document.querySelector("#statusLine"),
@@ -342,6 +380,7 @@ const els = {
   handHint: document.querySelector("#handHint"),
   logPanel: document.querySelector("#logPanel"),
   logTitle: document.querySelector("#logTitle"),
+  logToggleButton: document.querySelector("#logToggleButton"),
   gameLog: document.querySelector("#gameLog"),
   toast: document.querySelector("#toast"),
   suitModal: document.querySelector("#suitModal"),
@@ -399,7 +438,11 @@ function suitName(suitId) {
 function suitStatusName(suitId) {
   const suit = SUIT_BY_ID[suitId];
   if (!suit) return "";
-  return `${suit.symbol} ${suitName(suitId)}`;
+  return `${suit.symbol} ${suitName(suitId)} · ${currentNumberStatus()}`;
+}
+
+function currentNumberStatus() {
+  return state.currentNumber ? t("activeNumber", { number: state.currentNumber }) : t("noActiveNumber");
 }
 
 function cardCount(count) {
@@ -435,6 +478,23 @@ function loadScores() {
 
 function saveScores() {
   localStorage.setItem(SCORE_KEY, JSON.stringify(players.map((player) => player.score)));
+}
+
+function loadMusicPreference() {
+  state.musicEnabled = true;
+  try {
+    localStorage.setItem(MUSIC_PREF_KEY, "on");
+  } catch {
+    // Music defaults to on even if storage is unavailable.
+  }
+}
+
+function saveMusicPreference() {
+  try {
+    localStorage.setItem(MUSIC_PREF_KEY, state.musicEnabled ? "on" : "off");
+  } catch {
+    // The button state still works for the current page if storage is unavailable.
+  }
 }
 
 function createDeck() {
@@ -494,6 +554,14 @@ function isWild(card) {
   return card?.kind === "wild";
 }
 
+function isBigJoker(card) {
+  return card?.kind === "wild" && card.wildType === "joker";
+}
+
+function isBeastWild(card) {
+  return card?.kind === "wild" && card.wildType !== "joker";
+}
+
 function topCard() {
   return state.discard[state.discard.length - 1];
 }
@@ -509,10 +577,10 @@ function cardName(card) {
   }
   if (card.kind === "reverse") {
     return state.language === "zh"
-      ? `${suitName(card.suit)}${t("littleJoker")}`
-      : `${suitName(card.suit)} ${t("littleJoker")}`;
+      ? t("littleJoker")
+      : t("littleJoker");
   }
-  return card.wildType === "joker" ? t("bigJoker") : state.language === "zh" ? `${beastName(card.wildType)}大王` : beastName(card.wildType);
+  return card.wildType === "joker" ? t("bigJoker") : beastName(card.wildType);
 }
 
 function addLog(key, params = {}) {
@@ -552,29 +620,235 @@ function directionIcon() {
 }
 
 function updateMusicButton() {
-  const label = state.musicEnabled ? t("musicOnLabel") : t("musicOffLabel");
-  els.musicButton.classList.toggle("is-on", state.musicEnabled);
+  const audioState = els.musicButton.dataset.audioState || (state.musicEnabled ? "idle" : "off");
+  const isPlaying = state.musicEnabled && audioState === "playing";
+  const isWaiting = state.musicEnabled && !isPlaying;
+  const label = isPlaying ? t("musicOnLabel") : isWaiting ? t("musicReadyLabel") : t("musicOffLabel");
+  els.musicButton.classList.toggle("is-on", isPlaying);
+  els.musicButton.classList.toggle("is-waiting", isWaiting);
   els.musicButton.classList.toggle("is-off", !state.musicEnabled);
   els.musicButton.setAttribute("aria-label", label);
-  els.musicButton.setAttribute("aria-pressed", String(state.musicEnabled));
+  els.musicButton.setAttribute("aria-pressed", String(isPlaying));
+  els.musicButton.dataset.music = isPlaying ? "on" : isWaiting ? "waiting" : "off";
   els.musicButton.title = label;
 }
 
-function initMusicEngine() {
-  if (!audioContext || audioContext.state === "closed") {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return false;
-    try {
-      audioContext = new AudioContextClass();
-    } catch {
-      return false;
+function audioRegistry(key) {
+  try {
+    if (!window[key]) window[key] = new Set();
+    return window[key];
+  } catch {
+    return new Set();
+  }
+}
+
+function musicRegistry() {
+  return audioRegistry(MUSIC_REGISTRY_KEY);
+}
+
+function sfxRegistry() {
+  return audioRegistry(SFX_REGISTRY_KEY);
+}
+
+function musicController() {
+  try {
+    if (!window[MUSIC_CONTROLLER_KEY]) {
+      window[MUSIC_CONTROLLER_KEY] = {
+        audio: null,
+      };
     }
+    return window[MUSIC_CONTROLLER_KEY];
+  } catch {
+    return { audio: null };
+  }
+}
+
+function attachMusicAudio(audio) {
+  if (!audio) return;
+  audio.setAttribute(MUSIC_AUDIO_ATTRIBUTE, MUSIC_INSTANCE_ID);
+  audio.style.display = "none";
+  audio.controls = false;
+  if (!audio.parentNode) {
+    (document.body || document.documentElement).appendChild(audio);
+  }
+}
+
+function detachMusicAudio(audio) {
+  if (!audio?.parentNode || !audio.hasAttribute(MUSIC_AUDIO_ATTRIBUTE)) return;
+  try {
+    audio.parentNode.removeChild(audio);
+  } catch {
+    // The node may already be gone after navigation or browser cleanup.
+  }
+}
+
+function stopAudioElement(audio) {
+  if (!audio) return;
+  try {
+    audio.muted = true;
+    audio.volume = 0;
+    audio.pause();
+    audio.loop = false;
+    audio.currentTime = 0;
+    audio.removeAttribute("src");
+    audio.src = "";
+    audio.load();
+  } catch {
+    // Some browsers throw while tearing down data-url audio. The reference is still dropped.
+  }
+}
+
+function stopRegisteredMusicAudios(except = null) {
+  const registry = musicRegistry();
+  const controller = musicController();
+  const knownAudios = new Set(registry);
+  if (musicAudio) knownAudios.add(musicAudio);
+  if (controller.audio) knownAudios.add(controller.audio);
+  document.querySelectorAll(`audio[${MUSIC_AUDIO_ATTRIBUTE}]`).forEach((audio) => knownAudios.add(audio));
+
+  knownAudios.forEach((audio) => {
+    if (audio === except) {
+      registry.add(audio);
+      attachMusicAudio(audio);
+      return;
+    }
+    stopAudioElement(audio);
+    registry.delete(audio);
+    detachMusicAudio(audio);
+  });
+
+  if (except) {
+    musicAudio = except;
+    controller.audio = except;
+    registry.add(except);
+    attachMusicAudio(except);
+  } else {
+    musicAudio = null;
+    controller.audio = null;
+  }
+}
+
+function stopActiveSfx() {
+  const registry = sfxRegistry();
+  registry.forEach((audio) => {
+    stopAudioElement(audio);
+    registry.delete(audio);
+  });
+
+  try {
+    window.speechSynthesis?.cancel();
+  } catch {
+    // Speech synthesis cancellation is best-effort.
+  }
+}
+
+function publishMusicOwner(status) {
+  try {
+    localStorage.setItem(
+      MUSIC_OWNER_KEY,
+      JSON.stringify({
+        source: MUSIC_INSTANCE_ID,
+        status,
+        time: Date.now(),
+      }),
+    );
+  } catch {
+    // Ownership polling is a fallback for browsers where BroadcastChannel is unreliable.
+  }
+}
+
+function readMusicOwner() {
+  try {
+    return JSON.parse(localStorage.getItem(MUSIC_OWNER_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function shouldYieldToMusicOwner(owner) {
+  return owner?.source && owner.source !== MUSIC_INSTANCE_ID && (owner.status === "playing" || owner.status === "stopped");
+}
+
+function yieldToExternalMusicOwner(owner) {
+  if (!shouldYieldToMusicOwner(owner)) return;
+  state.musicEnabled = false;
+  saveMusicPreference();
+  stopMusic({ broadcast: false, publish: false });
+}
+
+function checkMusicOwnership() {
+  if (!state.musicEnabled && els.musicButton.dataset.audioState === "off") return;
+  yieldToExternalMusicOwner(readMusicOwner());
+}
+
+function setupMusicOwnershipMonitor() {
+  if (musicOwnerTimer) return;
+  musicOwnerTimer = window.setInterval(checkMusicOwnership, MUSIC_OWNER_CHECK_MS);
+}
+
+function unlockMusicPlayback() {
+  if (!releaseMusicLock) return;
+  try {
+    releaseMusicLock();
+  } catch {
+    // Releasing an already-settled lock is harmless.
+  }
+  releaseMusicLock = null;
+}
+
+function acquireMusicPlaybackLock() {
+  const locks = window.navigator?.locks || (typeof navigator !== "undefined" ? navigator.locks : null);
+  if (!locks?.request) return Promise.resolve(true);
+
+  unlockMusicPlayback();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    locks
+      .request(MUSIC_LOCK_NAME, { ifAvailable: true }, async (lock) => {
+        if (!lock) {
+          settle(false);
+          return;
+        }
+
+        await new Promise((release) => {
+          releaseMusicLock = release;
+          settle(true);
+        });
+      })
+      .catch(() => settle(true));
+  });
+}
+
+function initMusicEngine() {
+  const controller = musicController();
+  const existingAudio = musicAudio || controller.audio;
+  if (existingAudio?.src) {
+    musicAudio = existingAudio;
+    controller.audio = existingAudio;
+    stopRegisteredMusicAudios(existingAudio);
+    return true;
   }
 
-  if (!musicMaster) {
-    musicMaster = audioContext.createGain();
-    musicMaster.gain.value = 0;
-    musicMaster.connect(audioContext.destination);
+  try {
+    stopRegisteredMusicAudios();
+    musicAudio = document.createElement("audio");
+    musicAudio.src = createMusicLoopDataUrl();
+    musicAudio.loop = true;
+    musicAudio.preload = "auto";
+    musicAudio.volume = MUSIC_VOLUME;
+    controller.audio = musicAudio;
+    stopRegisteredMusicAudios(musicAudio);
+  } catch {
+    musicAudio = null;
+    controller.audio = null;
+    return false;
   }
   return true;
 }
@@ -586,131 +860,391 @@ function noteFrequency(note) {
   return 440 * 2 ** ((semitones[name] + (octave - 4) * 12) / 12);
 }
 
-function playPluck(note, time, gain = 0.035, duration = 0.34) {
-  if (!audioContext || !musicMaster || !state.musicEnabled) return;
-  const osc = audioContext.createOscillator();
-  const envelope = audioContext.createGain();
-  osc.type = "triangle";
-  osc.frequency.value = noteFrequency(note);
-  envelope.gain.setValueAtTime(0.0001, time);
-  envelope.gain.exponentialRampToValueAtTime(gain, time + 0.018);
-  envelope.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-  osc.connect(envelope).connect(musicMaster);
-  activeMusicSources.add(osc);
-  osc.addEventListener(
-    "ended",
-    () => {
-      activeMusicSources.delete(osc);
-      try {
-        osc.disconnect();
-      } catch {
-        // The node may already be disconnected when the music is stopped.
-      }
-      try {
-        envelope.disconnect();
-      } catch {
-        // The node may already be disconnected when the music is stopped.
-      }
-    },
-    { once: true },
-  );
-  osc.start(time);
-  osc.stop(time + duration + 0.04);
-}
-
-function scheduleMusic() {
-  if (!audioContext || !musicMaster || !state.musicEnabled || audioContext.state !== "running") return;
-  const melody = ["E5", "G5", "A5", "G5", "E5", "D5", "C5", "D5", "E5", "G5", "C6", "B5", "A5", "G5", "E5", "D5"];
-  const bass = ["C3", "C3", "G2", "G2", "A2", "A2", "F2", "G2"];
-  const chords = [
-    ["C4", "E4", "G4"],
-    ["G3", "B3", "D4"],
-    ["A3", "C4", "E4"],
-    ["F3", "A3", "C4"],
-  ];
-  while (nextMusicTime < audioContext.currentTime + MUSIC_LOOKAHEAD_SECONDS) {
-    const step = musicStepIndex % melody.length;
-    playPluck(melody[step], nextMusicTime, 0.05, 0.22);
-    if (step % 4 === 0) playPluck(bass[(musicStepIndex / 4) % bass.length], nextMusicTime, 0.036, 0.48);
-    if (step % 8 === 0) {
-      chords[(musicStepIndex / 8) % chords.length].forEach((note, index) => {
-        playPluck(note, nextMusicTime + index * 0.018, 0.022, 0.62);
-      });
-    }
-    nextMusicTime += MUSIC_STEP_SECONDS;
-    musicStepIndex += 1;
+function writeAscii(view, offset, text) {
+  for (let index = 0; index < text.length; index += 1) {
+    view.setUint8(offset + index, text.charCodeAt(index));
   }
 }
 
-async function startMusic() {
-  const sessionId = ++musicSessionId;
-  if (!state.musicEnabled || !initMusicEngine()) return;
-  const context = audioContext;
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function createMusicLoopDataUrl() {
+  const sampleRate = 22050;
+  const loopSeconds = MUSIC_STEP_SECONDS * MUSIC_LOOP_STEPS;
+  const sampleCount = Math.floor(sampleRate * loopSeconds);
+  const bytesPerSample = 2;
+  const dataSize = sampleCount * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const melody = ["E5", "G5", "B5", "E6", "D6", "B5", "G5", "B5", "A5", "C6", "E6", "C6", "B5", "G5", "E5", "G5"].map(noteFrequency);
+  const counterMelody = ["B4", "E5", "G5", "E5", "C5", "E5", "A5", "E5"].map(noteFrequency);
+  const bass = ["E2", "E2", "B2", "E3", "C3", "C3", "G2", "C3", "D3", "D3", "A2", "D3", "B2", "B2", "F#2", "B2"].map(noteFrequency);
+  const chords = [
+    ["E4", "G4", "B4"],
+    ["C4", "E4", "G4"],
+    ["D4", "F#4", "A4"],
+    ["B3", "D4", "F#4"],
+  ].map((notes) => notes.map(noteFrequency));
+
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * bytesPerSample, true);
+  view.setUint16(32, bytesPerSample, true);
+  view.setUint16(34, 16, true);
+  writeAscii(view, 36, "data");
+  view.setUint32(40, dataSize, true);
+
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    const time = sample / sampleRate;
+    const step = Math.floor(time / MUSIC_STEP_SECONDS) % melody.length;
+    const stepPhase = (time % MUSIC_STEP_SECONDS) / MUSIC_STEP_SECONDS;
+    const quarterPhase = (time % (MUSIC_STEP_SECONDS * 2)) / (MUSIC_STEP_SECONDS * 2);
+    const quarterStep = Math.floor(time / (MUSIC_STEP_SECONDS * 2));
+    const phrase = Math.floor(time / (MUSIC_STEP_SECONDS * 8)) % chords.length;
+    const bassStep = Math.floor(time / MUSIC_STEP_SECONDS) % bass.length;
+    const counterStep = Math.floor(time / (MUSIC_STEP_SECONDS * 2)) % counterMelody.length;
+    const counterPhase = (time % (MUSIC_STEP_SECONDS * 2)) / (MUSIC_STEP_SECONDS * 2);
+    const melodyEnvelope = Math.min(1, stepPhase / 0.028) * Math.max(0, (1 - stepPhase) ** 0.78);
+    const counterEnvelope = Math.min(1, counterPhase / 0.05) * Math.max(0, (1 - counterPhase) ** 1.45);
+    const bassPhase = stepPhase;
+    const bassEnvelope = Math.min(1, bassPhase / 0.025) * Math.max(0, (1 - bassPhase) ** 0.62);
+    const chordPhase = (time % (MUSIC_STEP_SECONDS * 8)) / (MUSIC_STEP_SECONDS * 8);
+    const chordEnvelope = Math.min(1, chordPhase / 0.035) * Math.max(0, (1 - chordPhase) ** 0.7);
+    const kickEnvelope = Math.max(0, (1 - quarterPhase) ** 4.3);
+    const snareEnvelope = quarterStep % 4 === 1 || quarterStep % 4 === 3 ? Math.max(0, (1 - quarterPhase) ** 7) : 0;
+    const hatEnvelope = Math.max(0, (1 - stepPhase) ** 10);
+    const pulse = Math.sign(Math.sin(Math.PI * 2 * melody[step] * time));
+    const melodyWave = (Math.sin(Math.PI * 2 * melody[step] * time) * 0.62 + pulse * 0.38) * 0.27 * melodyEnvelope;
+    const counterWave = Math.sin(Math.PI * 2 * counterMelody[counterStep] * time) * 0.1 * counterEnvelope;
+    const bassWave =
+      (Math.sin(Math.PI * 2 * bass[bassStep] * time) * 0.7 + Math.sign(Math.sin(Math.PI * 2 * bass[bassStep] * time)) * 0.3) *
+      0.19 *
+      bassEnvelope;
+    const chordWave =
+      chords[phrase].reduce((total, frequency) => total + Math.sin(Math.PI * 2 * frequency * time), 0) *
+      0.04 *
+      chordEnvelope;
+    const kickWave = Math.sin(Math.PI * 2 * (78 - quarterPhase * 28) * time) * 0.26 * kickEnvelope;
+    const snareWave = Math.sin(Math.PI * 2 * (1800 + Math.sin(Math.PI * 2 * 113 * time) * 450) * time) * 0.08 * snareEnvelope;
+    const hatWave = Math.sin(Math.PI * 2 * 5200 * time) * 0.035 * hatEnvelope;
+    const value = Math.max(-1, Math.min(1, melodyWave + counterWave + bassWave + chordWave + kickWave + snareWave + hatWave));
+    view.setInt16(44 + sample * bytesPerSample, value * 0x7fff, true);
+  }
+
+  return `data:audio/wav;base64,${bytesToBase64(new Uint8Array(buffer))}`;
+}
+
+function createSfxDataUrl(durationSeconds, sampleRenderer) {
+  const sampleRate = 22050;
+  const sampleCount = Math.floor(sampleRate * durationSeconds);
+  const bytesPerSample = 2;
+  const dataSize = sampleCount * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  writeAscii(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeAscii(view, 8, "WAVE");
+  writeAscii(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * bytesPerSample, true);
+  view.setUint16(32, bytesPerSample, true);
+  view.setUint16(34, 16, true);
+  writeAscii(view, 36, "data");
+  view.setUint32(40, dataSize, true);
+
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    const time = sample / sampleRate;
+    const value = Math.max(-1, Math.min(1, sampleRenderer(time)));
+    view.setInt16(44 + sample * bytesPerSample, value * 0x7fff, true);
+  }
+
+  return `data:audio/wav;base64,${bytesToBase64(new Uint8Array(buffer))}`;
+}
+
+function burst(time, start, duration, frequency, gain) {
+  if (time < start || time > start + duration) return 0;
+  const phase = (time - start) / duration;
+  const attack = Math.min(1, phase / 0.12);
+  const decay = Math.max(0, (1 - phase) ** 0.72);
+  return Math.sin(Math.PI * 2 * frequency * time) * gain * attack * decay;
+}
+
+function getLastCardCueDataUrl() {
+  if (!lastCardCueDataUrl) {
+    lastCardCueDataUrl = createSfxDataUrl(
+      0.58,
+      (time) => burst(time, 0.03, 0.17, 980, 0.58) + burst(time, 0.29, 0.17, 1240, 0.54),
+    );
+  }
+  return lastCardCueDataUrl;
+}
+
+function getVictoryCueDataUrl() {
+  if (!victoryCueDataUrl) {
+    victoryCueDataUrl = createSfxDataUrl(
+      0.9,
+      (time) =>
+        burst(time, 0.02, 0.18, 660, 0.38) +
+        burst(time, 0.19, 0.22, 880, 0.42) +
+        burst(time, 0.42, 0.34, 1320, 0.46),
+    );
+  }
+  return victoryCueDataUrl;
+}
+
+function playSfx(dataUrl, volume = 0.8) {
+  if (!state.musicEnabled) return;
   try {
-    if (context.state !== "running") await context.resume();
+    const audio = new Audio(dataUrl);
+    audio.volume = volume;
+    const registry = sfxRegistry();
+    registry.add(audio);
+    audio.addEventListener?.("ended", () => registry.delete(audio), { once: true });
+    const playPromise = audio.play();
+    if (playPromise?.catch) playPromise.catch(() => registry.delete(audio));
   } catch {
+    // Sound effects are nice-to-have and should never interrupt the game.
+  }
+}
+
+function playLastCardCue() {
+  playSfx(getLastCardCueDataUrl(), 0.86);
+}
+
+function playHumanWinCue() {
+  if (!state.musicEnabled) return;
+  playSfx(getVictoryCueDataUrl(), 0.72);
+
+  try {
+    const synth = window.speechSynthesis;
+    const Utterance = window.SpeechSynthesisUtterance;
+    if (!synth || !Utterance) return;
+
+    synth.cancel();
+    const english = new Utterance("Your Win.");
+    english.lang = "en-US";
+    english.rate = 0.92;
+    english.pitch = 1.05;
+    english.volume = 1;
+
+    const chinese = new Utterance("你赢了。");
+    chinese.lang = "zh-CN";
+    chinese.rate = 0.95;
+    chinese.pitch = 1.05;
+    chinese.volume = 1;
+
+    english.onend = () => synth.speak(chinese);
+    synth.speak(english);
+  } catch {
+    // The victory chime above is the fallback when speech synthesis is unavailable.
+  }
+}
+
+function broadcastMusicStop() {
+  const payload = { source: MUSIC_INSTANCE_ID, time: Date.now() };
+  try {
+    localStorage.setItem(MUSIC_STOP_CHANNEL, JSON.stringify(payload));
+  } catch {
+    // Storage can be unavailable in private or restricted browser modes.
+  }
+  try {
+    musicChannel?.postMessage({ type: "stop", ...payload });
+  } catch {
+    // BroadcastChannel is a best-effort helper for other open game tabs.
+  }
+}
+
+function handleExternalMusicStop(source) {
+  if (source === MUSIC_INSTANCE_ID) return;
+  state.musicEnabled = false;
+  saveMusicPreference();
+  stopMusic({ broadcast: false, publish: false });
+  updateMusicButton();
+}
+
+async function startMusic({ claim = true } = {}) {
+  if (musicStartPromise) return musicStartPromise;
+  const activeAudio = musicAudio || musicController().audio;
+  if (activeAudio && !activeAudio.paused && els.musicButton.dataset.audioState === "playing") {
+    musicAudio = activeAudio;
     return;
   }
-  if (sessionId !== musicSessionId || !state.musicEnabled || !musicMaster || audioContext !== context || context.state !== "running") return;
-  const now = context.currentTime;
-  musicMaster.gain.cancelScheduledValues(now);
-  musicMaster.gain.setTargetAtTime(MUSIC_VOLUME, now, 0.08);
-  if (!musicTimer) {
-    nextMusicTime = now + 0.06;
-    scheduleMusic();
-    musicTimer = window.setInterval(scheduleMusic, 180);
+
+  const sessionId = ++musicSessionId;
+  if (!state.musicEnabled) return;
+
+  els.musicButton.dataset.audioState = "starting";
+  updateMusicButton();
+
+  musicStartPromise = (async () => {
+    const hasPlaybackLock = await acquireMusicPlaybackLock();
+    if (sessionId !== musicSessionId || !state.musicEnabled) {
+      unlockMusicPlayback();
+      return;
+    }
+    if (!hasPlaybackLock) {
+      state.musicEnabled = false;
+      saveMusicPreference();
+      els.musicButton.dataset.audioState = "off";
+      updateMusicButton();
+      return;
+    }
+
+    if (claim) {
+      publishMusicOwner("playing");
+      broadcastMusicStop();
+    }
+
+    if (!initMusicEngine()) {
+      unlockMusicPlayback();
+      return;
+    }
+
+    stopRegisteredMusicAudios(musicAudio);
+    const audio = musicAudio;
+    if (!audio.paused) {
+      els.musicButton.dataset.audioState = "playing";
+      updateMusicButton();
+      return;
+    }
+
+    audio.muted = false;
+    audio.volume = MUSIC_VOLUME;
+    audio.loop = true;
+    try {
+      await audio.play();
+    } catch {
+      if (sessionId === musicSessionId && state.musicEnabled) {
+        unlockMusicPlayback();
+        els.musicButton.dataset.audioState = "blocked";
+        updateMusicButton();
+      }
+      return;
+    }
+
+    if (sessionId !== musicSessionId || !state.musicEnabled || musicAudio !== audio) {
+      stopAudioElement(audio);
+      musicRegistry().delete(audio);
+      detachMusicAudio(audio);
+      if (musicAudio === audio) {
+        musicAudio = null;
+        musicController().audio = null;
+        els.musicButton.dataset.audioState = state.musicEnabled ? "idle" : "off";
+        updateMusicButton();
+      }
+      return;
+    }
+
+    els.musicButton.dataset.audioState = "playing";
+    updateMusicButton();
+  })();
+
+  try {
+    await musicStartPromise;
+  } finally {
+    if (sessionId === musicSessionId) {
+      musicStartPromise = null;
+      if (!state.musicEnabled) {
+        els.musicButton.dataset.audioState = "off";
+        updateMusicButton();
+      }
+      if (state.musicEnabled && musicAudio && !musicAudio.paused) {
+        els.musicButton.dataset.audioState = "playing";
+        updateMusicButton();
+      } else if (state.musicEnabled && els.musicButton.dataset.audioState === "starting") {
+        els.musicButton.dataset.audioState = "idle";
+        unlockMusicPlayback();
+        updateMusicButton();
+      }
+    }
   }
 }
 
-function stopMusic() {
+function stopMusic({ broadcast = false, publish = broadcast } = {}) {
   musicSessionId += 1;
-  if (musicTimer) {
-    window.clearInterval(musicTimer);
-    musicTimer = 0;
+  musicStartPromise = null;
+  if (publish) publishMusicOwner("stopped");
+  unlockMusicPlayback();
+  if (musicAudio) stopAudioElement(musicAudio);
+  stopRegisteredMusicAudios();
+  stopActiveSfx();
+  musicAudio = null;
+  els.musicButton.dataset.audioState = "off";
+  updateMusicButton();
+  if (broadcast) broadcastMusicStop();
+}
+
+function setupMusicSingleton() {
+  if ("BroadcastChannel" in window) {
+    try {
+      musicChannel = new BroadcastChannel(MUSIC_STOP_CHANNEL);
+      musicChannel.addEventListener("message", (event) => {
+        if (event.data?.type === "stop") handleExternalMusicStop(event.data.source);
+      });
+    } catch {
+      musicChannel = null;
+    }
   }
 
-  activeMusicSources.forEach((source) => {
+  window.addEventListener("storage", (event) => {
+    if (!event.newValue) return;
     try {
-      source.stop(0);
+      const payload = JSON.parse(event.newValue);
+      if (event.key === MUSIC_STOP_CHANNEL) {
+        handleExternalMusicStop(payload.source);
+      } else if (event.key === MUSIC_OWNER_KEY) {
+        yieldToExternalMusicOwner(payload);
+      }
     } catch {
-      // The source may have already ended.
-    }
-    try {
-      source.disconnect();
-    } catch {
-      // The source may have already been disconnected.
+      // Ignore malformed cross-tab messages.
     }
   });
-  activeMusicSources.clear();
 
-  const context = audioContext;
-  if (musicMaster) {
-    try {
-      const now = context?.currentTime || 0;
-      musicMaster.gain.cancelScheduledValues(now);
-      musicMaster.gain.setValueAtTime(0, now);
-      musicMaster.disconnect();
-    } catch {
-      // Closing the audio context below is the final shutdown path.
-    }
-  }
-  musicMaster = null;
-  audioContext = null;
-  nextMusicTime = 0;
-  musicStepIndex = 0;
+  window.addEventListener("pagehide", () => stopMusic({ broadcast: false }));
+  window.addEventListener("beforeunload", () => stopMusic({ broadcast: false }));
+  setupMusicOwnershipMonitor();
+  broadcastMusicStop();
+}
 
-  if (context && context.state !== "closed") {
-    context.close().catch(() => {});
-  }
+function shouldIgnoreMusicUnlock(event) {
+  const target = event.target;
+  if (!(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      "#musicButton, #languageButton, #rulesButton, #rulesCloseButton, #logToggleButton, #modalNextRound, #suitModal, #rulesModal, #roundModal",
+    ),
+  );
 }
 
 function setupMusicAutoplay() {
-  const unlock = () => {
-    if (state.musicEnabled) startMusic();
+  const unlock = (event) => {
+    if (shouldIgnoreMusicUnlock(event)) return;
+    if (state.musicEnabled && els.musicButton.dataset.audioState !== "playing") startMusic();
+    document.removeEventListener("pointerdown", unlock);
+    document.removeEventListener("keydown", unlock);
   };
-  document.addEventListener("pointerdown", unlock, { once: true });
-  document.addEventListener("keydown", unlock, { once: true });
-  startMusic();
+  document.addEventListener("pointerdown", unlock);
+  document.addEventListener("keydown", unlock);
+  els.musicButton.dataset.audioState = state.musicEnabled ? "idle" : "off";
+  updateMusicButton();
+  if (state.musicEnabled) startMusic();
 }
 
 function isSpecialCard(card) {
@@ -727,12 +1261,22 @@ function describeCardEffect(action) {
     });
   }
 
+  if (action.effectType === "beast") {
+    const suit = SUIT_BY_ID[action.activeSuit];
+    return t("effectBeast", {
+      card: cardName(action.card),
+      symbol: suit.symbol,
+      suit: suitName(action.activeSuit),
+      number: action.activeNumber ? t("activeNumber", { number: action.activeNumber }) : t("noActiveNumber"),
+    });
+  }
+
   if (action.effectType === "reverse") {
-    const suit = SUIT_BY_ID[action.card.suit];
+    const suit = SUIT_BY_ID[action.activeSuit];
     return t("effectReverse", {
       card: cardName(action.card),
       symbol: suit.symbol,
-      suit: suitName(action.card.suit),
+      suit: suitName(action.activeSuit),
       icon: directionIcon(),
       direction: directionText(),
     });
@@ -744,6 +1288,9 @@ function describeCardEffect(action) {
 function playedCardLogEffect(effectType, suitId) {
   if (effectType === "wild") {
     return t("logEffectChosenSuit", { suit: suitName(suitId) });
+  }
+  if (effectType === "beast") {
+    return t("logEffectBeast");
   }
   if (effectType === "reverse") {
     return t("logEffectReverse");
@@ -786,14 +1333,14 @@ function formatLogEntry(entry) {
 function canPlay(card) {
   const top = topCard();
   if (!card || !top) return false;
-  if (isWild(card)) return true;
+  if (isBigJoker(card) || isBeastWild(card)) return true;
 
   if (card.kind === "number") {
-    return card.suit === state.currentSuit || (top.kind === "number" && card.number === top.number);
+    return card.suit === state.currentSuit || (state.currentNumber !== null && card.number === state.currentNumber);
   }
 
   if (card.kind === "reverse") {
-    return isWild(top) || card.suit === state.currentSuit;
+    return true;
   }
 
   return false;
@@ -868,6 +1415,7 @@ function startRound() {
   state.animatingCard = null;
   state.lastAction = null;
   state.directionNotice = null;
+  state.currentNumber = null;
   state.log = [];
   els.rulesModal.classList.remove("is-open");
   els.rulesModal.setAttribute("aria-hidden", "true");
@@ -886,6 +1434,7 @@ function startRound() {
   const opening = pickOpeningCard();
   state.discard = [opening];
   state.currentSuit = opening.suit;
+  state.currentNumber = opening.kind === "number" ? opening.number : null;
 
   if (opening.kind === "reverse") {
     state.direction = -1;
@@ -972,7 +1521,7 @@ async function playCard(playerIndex, cardId, chosenSuit = null) {
     return false;
   }
 
-  if (isWild(card) && !chosenSuit) {
+  if (isBigJoker(card) && !chosenSuit) {
     state.pendingSuitCardId = card.id;
     render();
     return false;
@@ -996,17 +1545,20 @@ async function playCard(playerIndex, cardId, chosenSuit = null) {
   let effectType = null;
   let effectSuit = null;
   let directionChanged = false;
-  if (isWild(card)) {
+  if (isBigJoker(card)) {
     state.currentSuit = chosenSuit;
+    state.currentNumber = null;
     effectType = "wild";
     effectSuit = chosenSuit;
+  } else if (isBeastWild(card)) {
+    effectType = "beast";
   } else if (card.kind === "reverse") {
-    state.currentSuit = card.suit;
     state.direction *= -1;
     directionChanged = true;
     effectType = "reverse";
   } else {
     state.currentSuit = card.suit;
+    state.currentNumber = card.number;
   }
 
   state.lastAction = {
@@ -1015,6 +1567,8 @@ async function playCard(playerIndex, cardId, chosenSuit = null) {
     previousTopCard,
     effectType: effectType || "played",
     chosenSuit,
+    activeSuit: state.currentSuit,
+    activeNumber: state.currentNumber,
     isSpecial: isSpecialCard(card),
   };
 
@@ -1029,6 +1583,10 @@ async function playCard(playerIndex, cardId, chosenSuit = null) {
   if (hand.length === 0) {
     endRound(playerIndex);
     return true;
+  }
+
+  if (hand.length === 1) {
+    playLastCardCue();
   }
 
   state.currentPlayer = nextPlayerIndex(playerIndex);
@@ -1046,6 +1604,9 @@ function endRound(winnerIndex) {
   players[winnerIndex].score += 1;
   saveScores();
   addLog("winner", { playerIndex: winnerIndex });
+  if (winnerIndex === HUMAN_INDEX) {
+    playHumanWinCue();
+  }
   render();
 }
 
@@ -1111,7 +1672,7 @@ function scheduleAiDrawnCardPlay(playerIndex, delay = AI_DRAW_PLAY_DELAY) {
       finishTurn();
       return;
     }
-    const suit = isWild(freshCard) ? chooseBestSuit(playerIndex) : null;
+    const suit = isBigJoker(freshCard) ? chooseBestSuit(playerIndex) : null;
     playCard(playerIndex, freshCard.id, suit);
   }, delay);
 }
@@ -1155,7 +1716,7 @@ function runAiTurn() {
   }
 
   const card = chooseAiCard(playerIndex, choices);
-  const suit = isWild(card) ? chooseBestSuit(playerIndex) : null;
+  const suit = isBigJoker(card) ? chooseBestSuit(playerIndex) : null;
   playCard(playerIndex, card.id, suit);
 }
 
@@ -1245,6 +1806,8 @@ function resumeAfterRulesModal() {
 
 function render() {
   renderStaticText();
+  renderLogToggle();
+  updateArenaOverlayFrame();
   renderHeader();
   renderSeats();
   renderCenter();
@@ -1254,6 +1817,19 @@ function render() {
   renderDirectionNotice();
   renderSuitModal();
   renderRoundModal();
+}
+
+function updateArenaOverlayFrame() {
+  const rect = els.arena.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty("--arena-left", `${rect.left}px`);
+  rootStyle.setProperty("--arena-top", `${rect.top}px`);
+  rootStyle.setProperty("--arena-width", `${rect.width}px`);
+  rootStyle.setProperty("--arena-height", `${rect.height}px`);
+  rootStyle.setProperty("--arena-center-x", `${rect.left + rect.width / 2}px`);
+  rootStyle.setProperty("--arena-center-y", `${rect.top + rect.height / 2}px`);
 }
 
 function renderStaticText() {
@@ -1347,10 +1923,12 @@ function renderSeats() {
     const isHuman = index === HUMAN_INDEX;
     const hiddenCount = Math.min(player.hand.length, 6);
     const callout = player.hand.length === 1 ? `<span class="callout">${t("calling")}</span>` : "";
+    const turnChip = isActive ? `<span class="turn-chip">${t("turnChip")}</span>` : "";
 
     seat.innerHTML = `
       <article class="player-panel ${isActive ? "is-active" : ""} ${isThinking ? "is-thinking" : ""} ${isHuman ? "is-human" : ""}">
         <div class="score-badge">${t("score", { score: player.score })}</div>
+        ${turnChip}
         <div class="avatar ${isHuman ? "human" : player.kind}">${playerShortName(index)}</div>
         <div class="player-name">${playerName(index)}</div>
         <div class="player-meta">
@@ -1442,7 +2020,7 @@ function renderCenter() {
       ? describeCardEffect(visibleSpecialAction)
       : t("waitingSpecial");
 
-  els.activeSuit.innerHTML = `${t("activeSuit")} <span class="suit-symbol ${suit.tone}">${suit.symbol}</span> ${suitName(state.currentSuit)}`;
+  els.activeSuit.innerHTML = `${t("activeSuit")} <span class="suit-symbol ${suit.tone}">${suit.symbol}</span> ${suitName(state.currentSuit)} · ${escapeHtml(currentNumberStatus())}`;
   els.drawCount.textContent = cardCount(state.deck.length);
   els.discardCount.textContent = cardCount(state.discard.length);
   els.discardSlotLabel.textContent = shouldShowSpecial ? t("previousTopCard") : t("topCard");
@@ -1510,6 +2088,17 @@ function renderHand() {
 
 function renderLog() {
   els.gameLog.innerHTML = state.log.map((entry) => `<li>${escapeHtml(formatLogEntry(entry))}</li>`).join("");
+}
+
+function renderLogToggle() {
+  const label = state.isLogOpen ? t("logCloseButton") : t("logOpenButton");
+  const ariaLabel = state.isLogOpen ? t("logCloseLabel") : t("logOpenLabel");
+  els.app.classList.toggle("is-log-open", state.isLogOpen);
+  els.logPanel.setAttribute("aria-hidden", String(!state.isLogOpen));
+  els.logToggleButton.textContent = label;
+  els.logToggleButton.title = ariaLabel;
+  els.logToggleButton.setAttribute("aria-label", ariaLabel);
+  els.logToggleButton.setAttribute("aria-expanded", String(state.isLogOpen));
 }
 
 function renderDirectionNotice() {
@@ -1661,9 +2250,8 @@ function renderCard(card, options = {}) {
   }
 
   if (card.kind === "reverse") {
-    const suit = SUIT_BY_ID[card.suit];
     el.innerHTML = `
-      ${renderJokerArt("small", t("littleJoker"), `${suit.symbol} ${suitName(card.suit)} · ${t("reverse")}`)}
+      ${renderJokerArt("small", t("littleJoker"), t("reverse"))}
     `;
     return el;
   }
@@ -1675,47 +2263,52 @@ function renderCard(card, options = {}) {
 function renderBeastArt(card) {
   const art = {
     dragon: `
-      <path class="beast-cloud" d="M17 77c7-8 16-9 23-4 7-8 22-7 30 2-8 8-44 10-53 2Z" />
-      <path class="dragon-body" d="M18 57c10-23 40-34 52-13 7 12-1 29-17 28-11 0-15-8-10-15 5-6 17-4 17 5" />
-      <path class="dragon-neck" d="M32 57c7-7 17-8 25-4" />
-      <path class="dragon-head" d="M58 32l12-7-1 11 9 5-12 4-7 9-7-8-11 1 8-9-3-10Z" />
-      <path class="dragon-horn" d="M58 31l-5-11M66 29l6-10" />
-      <circle class="beast-eye" cx="63" cy="38" r="2.4" />
-      <path class="dragon-whisker" d="M68 42c8-1 11 3 14 8M56 45c-8 3-11 8-13 14" />
-      <path class="dragon-scale" d="M25 57c5 2 8 2 13 0M35 49c5 2 9 2 14 0M46 43c5 1 8 1 12-1" />
+      <ellipse class="beast-aura" cx="55" cy="55" rx="42" ry="39" />
+      <path class="beast-cloud" d="M14 83c9-9 20-10 29-4 9-9 30-8 40 3-12 10-57 12-69 1Z" />
+      <path class="dragon-body" d="M18 67C28 35 60 29 75 48c12 15 1 39-22 34-17-4-18-25-1-27 12-1 20 6 18 16" />
+      <path class="dragon-belly" d="M22 67C32 43 57 38 69 51c9 10 2 26-15 24-9-1-11-12-2-15" />
+      <path class="dragon-head" d="M70 23l13-9-1 13 11 5-13 5-7 11-8-9-13 2 8-11-4-12Z" />
+      <path class="dragon-frill" d="M61 42l-13 11 16-1 4 14 7-14 15 1-12-10" />
+      <path class="dragon-horn" d="M70 23l-7-12M80 21l7-12" />
+      <circle class="beast-eye" cx="75" cy="31" r="2.5" />
+      <path class="dragon-whisker" d="M82 34c9-2 14 2 18 7M69 38c-10 3-15 8-19 16" />
+      <path class="dragon-scale" d="M29 60c5 3 10 3 15 0M41 49c6 2 12 2 17-1M55 43c5 1 9 1 13-1" />
     `,
     tiger: `
-      <path class="tiger-body" d="M17 70c4-20 14-34 28-34s24 14 28 34c-9 11-47 11-56 0Z" />
-      <path class="tiger-ear left" d="M25 38l-8-16 18 7" />
-      <path class="tiger-ear right" d="M65 38l8-16-18 7" />
-      <path class="tiger-face" d="M23 47c5-12 13-18 22-18s17 6 22 18c4 11-4 28-22 28S19 58 23 47Z" />
-      <path class="tiger-stripe" d="M45 31v13M35 36l7 8M55 36l-7 8M28 49l10 3M62 49l-10 3M30 61l9-4M60 61l-9-4" />
-      <circle class="beast-eye" cx="37" cy="51" r="2.8" />
-      <circle class="beast-eye" cx="53" cy="51" r="2.8" />
-      <path class="tiger-nose" d="M41 59h8l-4 5Z" />
-      <path class="tiger-mouth" d="M45 64c-3 4-7 5-12 3M45 64c3 4 7 5 12 3" />
-      <path class="tiger-tail" d="M69 61c11-2 14-13 8-20" />
+      <ellipse class="beast-aura" cx="55" cy="57" rx="42" ry="38" />
+      <path class="tiger-body" d="M16 82c4-23 18-38 39-38s35 15 39 38c-13 12-65 12-78 0Z" />
+      <path class="tiger-ear left" d="M31 39L20 15l27 12" />
+      <path class="tiger-ear right" d="M79 39l11-24-27 12" />
+      <path class="tiger-face" d="M24 52c6-18 18-28 31-28s25 10 31 28c6 19-7 39-31 39S18 71 24 52Z" />
+      <path class="tiger-cheek" d="M34 68c8 10 34 10 42 0-2 16-40 19-42 0Z" />
+      <path class="tiger-stripe" d="M55 25v19M43 31l8 13M67 31l-8 13M30 52l15 4M80 52l-15 4M31 65l14-6M79 65l-14-6M40 78l8-8M70 78l-8-8" />
+      <circle class="beast-eye" cx="44" cy="57" r="3.2" />
+      <circle class="beast-eye" cx="66" cy="57" r="3.2" />
+      <path class="tiger-nose" d="M50 66h10l-5 6Z" />
+      <path class="tiger-mouth" d="M55 72c-4 5-10 6-17 3M55 72c4 5 10 6 17 3" />
+      <path class="tiger-tail" d="M84 70c15-5 17-21 8-31" />
     `,
     phoenix: `
-      <path class="phoenix-tail" d="M45 59c-18 7-25 18-27 31 12-8 21-13 27-15 6 2 15 7 27 15-2-13-9-24-27-31Z" />
-      <path class="phoenix-wing left" d="M42 48c-18-14-28-15-36-9 10 5 15 12 19 22" />
-      <path class="phoenix-wing right" d="M48 48c18-14 28-15 36-9-10 5-15 12-19 22" />
-      <path class="phoenix-body" d="M33 72c2-24 7-43 12-43s10 19 12 43c-6 7-18 7-24 0Z" />
-      <path class="phoenix-neck" d="M44 32c-2-10 3-17 11-21-2 11 2 17 11 22-9 3-16 1-22-1Z" />
-      <path class="phoenix-crest" d="M55 11l7-8 2 12 10-4-7 10" />
-      <circle class="beast-eye" cx="56" cy="25" r="2.2" />
-      <path class="phoenix-feather" d="M31 62c-7 5-13 12-18 22M59 62c7 5 13 12 18 22M45 63v26" />
+      <ellipse class="beast-aura" cx="55" cy="57" rx="42" ry="40" />
+      <path class="phoenix-tail" d="M55 62c-24 9-34 24-36 43 16-12 28-18 36-21 8 3 20 9 36 21-2-19-12-34-36-43Z" />
+      <path class="phoenix-wing left" d="M51 51C28 28 14 25 4 33c14 7 21 17 27 34 8-7 15-11 20-16Z" />
+      <path class="phoenix-wing right" d="M59 51c23-23 37-26 47-18-14 7-21 17-27 34-8-7-15-11-20-16Z" />
+      <path class="phoenix-body" d="M42 85c2-32 7-58 13-58s11 26 13 58c-7 9-19 9-26 0Z" />
+      <path class="phoenix-neck" d="M54 30c-2-12 5-22 16-27-3 15 2 22 14 28-12 4-22 2-30-1Z" />
+      <path class="phoenix-crest" d="M70 9l8-7 3 12 12-4-8 11" />
+      <circle class="beast-eye" cx="69" cy="22" r="2.3" />
+      <path class="phoenix-feather" d="M39 68c-9 7-18 17-25 31M71 68c9 7 18 17 25 31M55 66v38M28 51c-12 8-18 16-22 29M82 51c12 8 18 16 22 29" />
     `,
   };
 
   return `
     <span class="card-main beast-main beast-${card.wildType}">
-      <svg class="beast-illustration" viewBox="0 0 90 100" aria-hidden="true" focusable="false">
-        <rect class="beast-frame" x="11" y="9" width="68" height="82" rx="12" />
+      <svg class="beast-illustration" viewBox="0 0 110 112" aria-hidden="true" focusable="false">
+        <rect class="beast-frame" x="8" y="6" width="94" height="100" rx="16" />
         ${art[card.wildType]}
       </svg>
       <span class="beast-title">${beastName(card.wildType)}</span>
-      <span class="beast-sub">${t("wildSuit")}</span>
+      <span class="beast-sub">${t("beastPass")}</span>
     </span>
   `;
 }
@@ -1853,14 +2446,23 @@ els.drawButton.addEventListener("click", () => {
 els.modalNextRound.addEventListener("click", startRound);
 els.rulesButton.addEventListener("click", openRulesModal);
 els.rulesCloseButton.addEventListener("click", closeRulesModal);
+els.logToggleButton.addEventListener("click", () => {
+  state.isLogOpen = !state.isLogOpen;
+  render();
+});
 els.musicButton.addEventListener("click", () => {
-  state.musicEnabled = !state.musicEnabled;
-  updateMusicButton();
-  if (state.musicEnabled) {
+  if (!state.musicEnabled) {
+    state.musicEnabled = true;
+    saveMusicPreference();
+    els.musicButton.dataset.audioState = "idle";
+    updateMusicButton();
     startMusic();
-  } else {
-    stopMusic();
+    return;
   }
+
+  state.musicEnabled = false;
+  saveMusicPreference();
+  stopMusic({ broadcast: true });
 });
 els.languageButton.addEventListener("click", () => {
   state.language = state.language === "en" ? "zh" : "en";
@@ -1894,7 +2496,12 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+window.addEventListener("resize", updateArenaOverlayFrame);
+window.addEventListener("orientationchange", () => window.setTimeout(updateArenaOverlayFrame, 120));
+
 loadScores();
+loadMusicPreference();
 updateMusicButton();
+setupMusicSingleton();
 setupMusicAutoplay();
 startRound();
