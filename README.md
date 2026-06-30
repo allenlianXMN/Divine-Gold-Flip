@@ -4,7 +4,7 @@ Divine Gold Flip is a single-player browser card game. One human player plays ag
 
 ## Play Online
 
-Playable link: [Divine Gold Flip](http://allen.lian.pages.git.ringcentral.com/divine-gold-flip/)
+Playable link: [Divine Gold Flip](http://divine-gold-flip-2f1427.pages.git.ringcentral.com)
 
 ## Run
 
