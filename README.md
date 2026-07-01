@@ -1,10 +1,30 @@
 # Divine Gold Flip
 
-Divine Gold Flip is a single-player browser card game. One human player plays against three AI opponents, and round scores are saved locally in the browser.
+Divine Gold Flip is a single-player browser card game inspired by matching-card and direction-changing party games. One human player plays against three AI opponents, and round scores are saved locally in the browser.
+
+The project is implemented as a pure front-end static website, so it can run directly from `index.html` or be published through GitLab Pages without a backend service.
 
 ## Play Online
 
 Playable link: [Divine Gold Flip](http://allen-lian-divine-gold-flip-57d623.pages.git.ringcentral.com)
+
+## Game Description
+
+Players take turns playing cards that match the active suit or active number. Big Jokers can be played anytime and choose the next active suit. Little Jokers reverse the turn direction. The divine beast cards, Azure Dragon, White Tiger, and Vermilion Bird, act as pass-style substitutes for normal 1-9 cards: they do not change the active suit, active number, or direction.
+
+The first player to empty their hand wins the round and gains 1 point. The game continues across rounds, and scores persist in browser local storage.
+
+## Screenshots
+
+No static screenshots are stored in this repository. The live GitLab Pages build is the recommended way to review the current UI.
+
+Key UI elements include:
+
+- Four-player table layout with one human player and three AI opponents.
+- Animated card plays that show which seat played the card.
+- Play direction indicators and active player highlighting.
+- Special card display for Jokers and divine beast cards.
+- Collapsible game log and rules modal.
 
 ## Run
 
@@ -16,11 +36,26 @@ python3 -m http.server 4173
 
 Then visit `http://localhost:4173`.
 
+## Setup
+
+No package installation is required. The game uses plain HTML, CSS, and JavaScript.
+
+Required local tools:
+
+- A modern browser.
+- Optional: Python 3, only if you want to run a local static server.
+
 ## GitLab Pages
 
 This repository publishes the static game through GitLab Pages. The pipeline copies `index.html`, `game.js`, and `styles.css` into the `public/` artifact.
 
 After the `pages` job succeeds, make sure project Pages access is set to Everyone in GitLab: Settings -> General -> Visibility, project features, permissions -> Pages.
+
+## Project Documents
+
+- [SPEC.md](SPEC.md): rules, scope, requirements, and acceptance criteria.
+- [ARCHITECTURE.md](ARCHITECTURE.md): technology stack, architecture, major decisions, and AI workflow.
+- [RETROSPECTIVE.md](RETROSPECTIVE.md): development reflection, lessons learned, and future improvements.
 
 ## Implemented Rules
 
