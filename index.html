@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Divine Gold Flip</title>
-    <link rel="stylesheet" href="./styles.css?v=music-singleton-3" />
+    <link rel="stylesheet" href="./styles.css?v=audio-buttons-1" />
   </head>
   <body>
     <div class="app">
@@ -28,6 +28,18 @@
             </svg>
             <svg class="music-icon music-icon-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M4 9.5h4l5-4.5v14l-5-4.5H4z" />
+              <path d="M17 9l4 4" />
+              <path d="M21 9l-4 4" />
+            </svg>
+          </button>
+          <button class="voice-button is-on" id="voiceButton" type="button" aria-label="Voice on" aria-pressed="true">
+            <svg class="voice-icon voice-icon-on" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 14v-4h4l5-4v12l-5-4H4z" />
+              <path d="M16 8.5c1.1.9 1.7 2.1 1.7 3.5s-.6 2.6-1.7 3.5" />
+              <path d="M18.8 6c1.7 1.6 2.7 3.6 2.7 6s-1 4.4-2.7 6" />
+            </svg>
+            <svg class="voice-icon voice-icon-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 14v-4h4l5-4v12l-5-4H4z" />
               <path d="M17 9l4 4" />
               <path d="M21 9l-4 4" />
             </svg>
@@ -85,6 +97,8 @@
           </div>
         </section>
 
+        <div class="deal-banner" id="dealBanner" aria-live="polite"></div>
+
         <div class="direction-flow" id="directionFlow" aria-live="polite" aria-label="Clockwise">
           <svg class="direction-flow-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <defs>
@@ -122,6 +136,20 @@
       </aside>
     </div>
 
+    <div class="welcome-screen" id="welcomeScreen" aria-hidden="false">
+      <section class="welcome-panel" aria-labelledby="welcomeTitle">
+        <div class="welcome-card-fan" aria-hidden="true">
+          <span class="welcome-card"></span>
+          <span class="welcome-card"></span>
+          <span class="welcome-card"></span>
+        </div>
+        <p class="welcome-kicker" id="welcomeKicker">Divine Gold Flip</p>
+        <h2 id="welcomeTitle">Welcome to Divine Gold Flip</h2>
+        <p id="welcomeSubtitle">Press start to deal the first round.</p>
+        <button class="start-game-button" id="startGameButton" type="button">Start Game</button>
+      </section>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <div class="direction-notice" id="directionNotice" role="status" aria-live="polite"></div>
 
@@ -151,6 +179,6 @@
       </div>
     </div>
 
-    <script src="./game.js?v=music-singleton-3"></script>
+    <script src="./game.js?v=audio-buttons-1"></script>
   </body>
 </html>

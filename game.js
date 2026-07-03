@@ -18,7 +18,9 @@ const AI_CARD_ANIMATION_MS = 1150;
 const MUSIC_BPM = 132;
 const MUSIC_STEP_SECONDS = 60 / MUSIC_BPM / 2;
 const MUSIC_LOOP_STEPS = 32;
-const MUSIC_VOLUME = 0.55;
+const MUSIC_VOLUME = 0.24;
+const MUSIC_DUCK_VOLUME = 0.07;
+const SPEECH_VOLUME = 1;
 const MUSIC_STOP_CHANNEL = "divine-gold-flip:music-stop";
 const MUSIC_PREF_KEY = "divine-gold-flip:music-enabled";
 const MUSIC_OWNER_KEY = "divine-gold-flip:music-owner";
@@ -39,6 +41,8 @@ let musicSessionId = 0;
 let musicStartPromise = null;
 let musicOwnerTimer = 0;
 let releaseMusicLock = null;
+let pageAudioCleanupDone = false;
+let speechDuckingToken = 0;
 let lastCardCueDataUrl = "";
 let victoryCueDataUrl = "";
 
@@ -55,9 +59,15 @@ const TEXT = {
     brandMark: "D",
     languageButton: "中文",
     switchLanguageLabel: "Switch to Chinese",
-    musicOnLabel: "Music on. Click to mute.",
-    musicReadyLabel: "Music ready. Click to mute.",
-    musicOffLabel: "Music off. Click to play.",
+    welcomeKicker: "Divine Gold Flip",
+    welcomeTitle: "Welcome to Divine Gold Flip",
+    welcomeSubtitle: "Press start to deal the round and watch the order around the table.",
+    startGame: "Start Game",
+    musicOnLabel: "Background music on. Click to mute.",
+    musicReadyLabel: "Background music ready. Click to mute.",
+    musicOffLabel: "Background music off. Click to play.",
+    voiceOnLabel: "Voice narration on. Click to mute.",
+    voiceOffLabel: "Voice narration off. Click to play.",
     rulesButton: "Rules",
     round: "Round {round}",
     dealer: "Dealer: {player}",
@@ -77,6 +87,10 @@ const TEXT = {
     justPlayed: "Just Played",
     waitingSpecial: "Waiting for a special card",
     turnPaused: "Game Paused",
+    tableWaiting: "Waiting for start",
+    dealOrderTitle: "Deal order",
+    dealingChip: "Dealing",
+    dealingTo: "Dealing to {player} · card {card}/5",
     roundOver: "Round Over",
     playerThinking: "{player} thinking",
     playerPlaying: "{player} playing",
@@ -105,11 +119,15 @@ const TEXT = {
     directionClockwise: "Clockwise",
     directionCounterClockwise: "Counterclockwise",
     statusPaused: "Rules open · game paused · active {suit}",
+    statusWelcome: "Welcome · press Start Game",
+    statusDealing: "Dealing cards · {player} card {card} of 5",
     statusRoundOver: "{player} won; score has been added",
     statusThinking: "{player} is thinking · active {suit}",
     statusPlaying: "{player} is playing · active {suit}",
     statusTurn: "{player}'s turn · active {suit}",
     hintPaused: "Rules are open. The game is paused.",
+    hintWelcome: "Press Start Game to deal the first round.",
+    hintDealing: "Dealing cards around the table.",
     hintRoundOver: "Round over. Continue to deal again.",
     hintAnimating: "Watch the card move onto the table.",
     hintThinking: "{player} is thinking.",
@@ -142,6 +160,10 @@ const TEXT = {
     effectBeast: "{card} played. Active suit and number stay {symbol} {suit}, {number}",
     effectReverse: "{card} is active. Direction changed to {icon} {direction}; active suit stays {symbol} {suit}",
     effectPlayed: "{card} played",
+    voicePlayed: "{player} played {card}.",
+    voiceSuitChanged: "Suit changed to {symbol} {suit}.",
+    voiceDirectionChanged: "Direction changed to {icon} {direction}.",
+    voiceWinner: "Winner is {winner}.",
     specialPlaying: "{card} is being played",
     flyingCard: "{player} played",
     toastWrongTurn: "It is not that player's turn.",
@@ -184,9 +206,15 @@ const TEXT = {
     brandMark: "令",
     languageButton: "English",
     switchLanguageLabel: "切换到英文",
-    musicOnLabel: "音乐已开启，点击关闭。",
-    musicReadyLabel: "音乐已准备好，点击关闭。",
-    musicOffLabel: "音乐已关闭，点击开启。",
+    welcomeKicker: "神兽转向牌",
+    welcomeTitle: "欢迎来到神兽转向牌",
+    welcomeSubtitle: "点击开始后发牌，并展示每一家的发牌顺序。",
+    startGame: "开始游戏",
+    musicOnLabel: "背景音乐已开启，点击关闭。",
+    musicReadyLabel: "背景音乐已准备好，点击关闭。",
+    musicOffLabel: "背景音乐已关闭，点击开启。",
+    voiceOnLabel: "语音播报已开启，点击关闭。",
+    voiceOffLabel: "语音播报已关闭，点击开启。",
     rulesButton: "规则",
     round: "第 {round} 局",
     dealer: "庄家: {player}",
@@ -206,6 +234,10 @@ const TEXT = {
     justPlayed: "刚打出",
     waitingSpecial: "等待特殊牌",
     turnPaused: "游戏暂停",
+    tableWaiting: "等待开始",
+    dealOrderTitle: "发牌顺序",
+    dealingChip: "发牌中",
+    dealingTo: "发给{player} · 第 {card}/5 张",
     roundOver: "本局结束",
     playerThinking: "{player} 思考中",
     playerPlaying: "{player} 出牌中",
@@ -234,11 +266,15 @@ const TEXT = {
     directionClockwise: "顺时针",
     directionCounterClockwise: "逆时针",
     statusPaused: "规则打开 · 游戏暂停 · 当前 {suit}",
+    statusWelcome: "欢迎 · 点击开始游戏",
+    statusDealing: "正在发牌 · {player} 第 {card}/5 张",
     statusRoundOver: "{player} 获胜，比分已累计",
     statusThinking: "{player} 正在思考 · 当前 {suit}",
     statusPlaying: "{player} 正在出牌 · 当前 {suit}",
     statusTurn: "轮到 {player} · 当前 {suit}",
     hintPaused: "规则打开，游戏已暂停。",
+    hintWelcome: "点击开始游戏后发第一局。",
+    hintDealing: "正在按顺序发牌。",
     hintRoundOver: "本局结束，继续下一局后重新发牌。",
     hintAnimating: "正在出牌，请看牌面移动。",
     hintThinking: "{player} 正在思考。",
@@ -271,6 +307,10 @@ const TEXT = {
     effectBeast: "{card} 已打出，继续沿用 {symbol} {suit}、{number}",
     effectReverse: "{card} 生效，方向改为 {icon} {direction}，继续沿用 {symbol} {suit}",
     effectPlayed: "{card} 已打出",
+    voicePlayed: "{player} 打出 {card}。",
+    voiceSuitChanged: "花色改为 {symbol} {suit}。",
+    voiceDirectionChanged: "方向改为 {icon} {direction}。",
+    voiceWinner: "赢家是{winner}。",
     specialPlaying: "{card} 正在打出",
     flyingCard: "{player} 出牌",
     toastWrongTurn: "还没轮到这位玩家。",
@@ -331,8 +371,11 @@ const state = {
   animatingCard: null,
   lastAction: null,
   directionNotice: null,
+  dealingTarget: null,
+  dealingCardNumber: 0,
   isLogOpen: false,
   musicEnabled: true,
+  voiceEnabled: true,
   log: [],
   aiTimer: 0,
 };
@@ -347,9 +390,11 @@ const els = {
   directionLabel: document.querySelector("#directionLabel"),
   languageButton: document.querySelector("#languageButton"),
   musicButton: document.querySelector("#musicButton"),
+  voiceButton: document.querySelector("#voiceButton"),
   directionFlow: document.querySelector("#directionFlow"),
   directionFlowSvg: document.querySelector(".direction-flow-svg"),
   flowPaths: [...document.querySelectorAll(".flow-path")],
+  dealBanner: document.querySelector("#dealBanner"),
   directionNotice: document.querySelector("#directionNotice"),
   activeSuit: document.querySelector("#activeSuit"),
   arena: document.querySelector("#arena"),
@@ -393,6 +438,11 @@ const els = {
   roundResultTitle: document.querySelector("#roundResultTitle"),
   roundResultText: document.querySelector("#roundResultText"),
   resultMark: document.querySelector("#resultMark"),
+  welcomeScreen: document.querySelector("#welcomeScreen"),
+  welcomeKicker: document.querySelector("#welcomeKicker"),
+  welcomeTitle: document.querySelector("#welcomeTitle"),
+  welcomeSubtitle: document.querySelector("#welcomeSubtitle"),
+  startGameButton: document.querySelector("#startGameButton"),
   seats: [...document.querySelectorAll(".seat")],
 };
 
@@ -633,6 +683,16 @@ function updateMusicButton() {
   els.musicButton.title = label;
 }
 
+function updateVoiceButton() {
+  const label = state.voiceEnabled ? t("voiceOnLabel") : t("voiceOffLabel");
+  els.voiceButton.classList.toggle("is-on", state.voiceEnabled);
+  els.voiceButton.classList.toggle("is-off", !state.voiceEnabled);
+  els.voiceButton.setAttribute("aria-label", label);
+  els.voiceButton.setAttribute("aria-pressed", String(state.voiceEnabled));
+  els.voiceButton.dataset.voice = state.voiceEnabled ? "on" : "off";
+  els.voiceButton.title = label;
+}
+
 function audioRegistry(key) {
   try {
     if (!window[key]) window[key] = new Set();
@@ -648,6 +708,39 @@ function musicRegistry() {
 
 function sfxRegistry() {
   return audioRegistry(SFX_REGISTRY_KEY);
+}
+
+function canPlayAudioNow() {
+  return state.musicEnabled && !pageAudioCleanupDone && document.visibilityState !== "hidden";
+}
+
+function canSpeakNow() {
+  return state.voiceEnabled && !pageAudioCleanupDone && document.visibilityState !== "hidden";
+}
+
+function setBackgroundMusicVolume(volume) {
+  const registry = musicRegistry();
+  const controller = musicController();
+  const knownAudios = new Set(registry);
+  if (musicAudio) knownAudios.add(musicAudio);
+  if (controller.audio) knownAudios.add(controller.audio);
+
+  knownAudios.forEach((audio) => {
+    if (!audio) return;
+    try {
+      audio.volume = volume;
+    } catch {
+      // Volume changes are best-effort across browser audio implementations.
+    }
+  });
+}
+
+function duckBackgroundMusicForSpeech() {
+  const token = ++speechDuckingToken;
+  setBackgroundMusicVolume(MUSIC_DUCK_VOLUME);
+  return () => {
+    if (speechDuckingToken === token) setBackgroundMusicVolume(MUSIC_VOLUME);
+  };
 }
 
 function musicController() {
@@ -734,7 +827,9 @@ function stopActiveSfx() {
     stopAudioElement(audio);
     registry.delete(audio);
   });
+}
 
+function stopActiveSpeech() {
   try {
     window.speechSynthesis?.cancel();
   } catch {
@@ -832,6 +927,7 @@ function initMusicEngine() {
   if (existingAudio?.src) {
     musicAudio = existingAudio;
     controller.audio = existingAudio;
+    existingAudio.volume = MUSIC_VOLUME;
     stopRegisteredMusicAudios(existingAudio);
     return true;
   }
@@ -1010,7 +1106,7 @@ function getVictoryCueDataUrl() {
 }
 
 function playSfx(dataUrl, volume = 0.8) {
-  if (!state.musicEnabled) return;
+  if (!canPlayAudioNow()) return;
   try {
     const audio = new Audio(dataUrl);
     audio.volume = volume;
@@ -1028,37 +1124,93 @@ function playLastCardCue() {
   playSfx(getLastCardCueDataUrl(), 0.86);
 }
 
-function playHumanWinCue() {
-  if (!state.musicEnabled) return;
-  playSfx(getVictoryCueDataUrl(), 0.72);
+function speechLanguage() {
+  return state.language === "zh" ? "zh-CN" : "en-US";
+}
 
+function speakText(text, { interrupt = true, rate = 0.96, pitch = 1.03, volume = SPEECH_VOLUME } = {}) {
+  if (!canSpeakNow() || !text) return;
+
+  let restoreMusicVolume = null;
   try {
     const synth = window.speechSynthesis;
     const Utterance = window.SpeechSynthesisUtterance;
     if (!synth || !Utterance) return;
 
-    synth.cancel();
-    const english = new Utterance("Your Win.");
-    english.lang = "en-US";
-    english.rate = 0.92;
-    english.pitch = 1.05;
-    english.volume = 1;
-
-    const chinese = new Utterance("你赢了。");
-    chinese.lang = "zh-CN";
-    chinese.rate = 0.95;
-    chinese.pitch = 1.05;
-    chinese.volume = 1;
-
-    english.onend = () => synth.speak(chinese);
-    synth.speak(english);
+    restoreMusicVolume = duckBackgroundMusicForSpeech();
+    if (interrupt) synth.cancel();
+    const utterance = new Utterance(text);
+    utterance.lang = speechLanguage();
+    utterance.rate = rate;
+    utterance.pitch = pitch;
+    utterance.volume = volume;
+    utterance.onend = restoreMusicVolume;
+    utterance.onerror = restoreMusicVolume;
+    synth.speak(utterance);
   } catch {
-    // The victory chime above is the fallback when speech synthesis is unavailable.
+    restoreMusicVolume?.();
+    // Voice narration is optional and should never interrupt gameplay.
   }
 }
 
-function broadcastMusicStop() {
-  const payload = { source: MUSIC_INSTANCE_ID, time: Date.now() };
+function buildPlayNarration(action) {
+  if (!action?.card) return "";
+
+  const narration = [
+    t("voicePlayed", {
+      player: playerName(action.playerIndex),
+      card: cardName(action.card),
+    }),
+  ];
+
+  if (action.effectType === "wild") {
+    const suit = SUIT_BY_ID[action.chosenSuit];
+    if (suit) {
+      narration.push(
+        t("voiceSuitChanged", {
+          symbol: suit.symbol,
+          suit: suitName(action.chosenSuit),
+        }),
+      );
+    }
+  } else if (action.effectType === "reverse") {
+    narration.push(
+      t("voiceDirectionChanged", {
+        icon: directionIcon(),
+        direction: directionText(),
+      }),
+    );
+  }
+
+  return narration.join(" ");
+}
+
+function speakPlayNarration(action) {
+  speakText(buildPlayNarration(action), {
+    rate: state.language === "zh" ? 0.98 : 0.92,
+  });
+}
+
+function winnerVoiceName(winnerIndex) {
+  if (state.language === "en" && winnerIndex === HUMAN_INDEX) return "YOU";
+  return playerName(winnerIndex);
+}
+
+function speakWinnerNarration(winnerIndex) {
+  speakText(t("voiceWinner", { winner: winnerVoiceName(winnerIndex) }), {
+    interrupt: false,
+    rate: state.language === "zh" ? 0.96 : 0.88,
+    pitch: 1.08,
+  });
+}
+
+function playRoundWinnerCue(winnerIndex) {
+  playSfx(getVictoryCueDataUrl(), winnerIndex === HUMAN_INDEX ? 0.86 : 0.66);
+  speakWinnerNarration(winnerIndex);
+}
+
+function broadcastMusicStop(type = "stop") {
+  const payload = { source: MUSIC_INSTANCE_ID, time: Date.now(), type };
   try {
     localStorage.setItem(MUSIC_STOP_CHANNEL, JSON.stringify(payload));
   } catch {
@@ -1071,31 +1223,45 @@ function broadcastMusicStop() {
   }
 }
 
-function handleExternalMusicStop(source) {
+function handleExternalMusicStop(source, { persistPreference = true } = {}) {
   if (source === MUSIC_INSTANCE_ID) return;
-  state.musicEnabled = false;
-  saveMusicPreference();
+  if (persistPreference) {
+    state.musicEnabled = false;
+    saveMusicPreference();
+  }
   stopMusic({ broadcast: false, publish: false });
   updateMusicButton();
 }
 
+function handleMusicStopPayload(payload) {
+  if (!payload?.source) return;
+  if (payload.type === "shutdown") {
+    handleExternalMusicStop(payload.source, { persistPreference: false });
+    return;
+  }
+  if (!payload.type || payload.type === "stop") {
+    handleExternalMusicStop(payload.source, { persistPreference: true });
+  }
+}
+
 async function startMusic({ claim = true } = {}) {
+  if (!canPlayAudioNow()) return;
   if (musicStartPromise) return musicStartPromise;
   const activeAudio = musicAudio || musicController().audio;
   if (activeAudio && !activeAudio.paused && els.musicButton.dataset.audioState === "playing") {
     musicAudio = activeAudio;
+    activeAudio.volume = MUSIC_VOLUME;
     return;
   }
 
   const sessionId = ++musicSessionId;
-  if (!state.musicEnabled) return;
 
   els.musicButton.dataset.audioState = "starting";
   updateMusicButton();
 
   musicStartPromise = (async () => {
     const hasPlaybackLock = await acquireMusicPlaybackLock();
-    if (sessionId !== musicSessionId || !state.musicEnabled) {
+    if (sessionId !== musicSessionId || !canPlayAudioNow()) {
       unlockMusicPlayback();
       return;
     }
@@ -1139,7 +1305,7 @@ async function startMusic({ claim = true } = {}) {
       return;
     }
 
-    if (sessionId !== musicSessionId || !state.musicEnabled || musicAudio !== audio) {
+    if (sessionId !== musicSessionId || !canPlayAudioNow() || musicAudio !== audio) {
       stopAudioElement(audio);
       musicRegistry().delete(audio);
       detachMusicAudio(audio);
@@ -1177,7 +1343,7 @@ async function startMusic({ claim = true } = {}) {
   }
 }
 
-function stopMusic({ broadcast = false, publish = broadcast } = {}) {
+function stopMusic({ broadcast = false, publish = broadcast, broadcastType = "stop" } = {}) {
   musicSessionId += 1;
   musicStartPromise = null;
   if (publish) publishMusicOwner("stopped");
@@ -1188,7 +1354,33 @@ function stopMusic({ broadcast = false, publish = broadcast } = {}) {
   musicAudio = null;
   els.musicButton.dataset.audioState = "off";
   updateMusicButton();
-  if (broadcast) broadcastMusicStop();
+  if (broadcast) broadcastMusicStop(broadcastType);
+}
+
+function stopMusicForPageExit() {
+  if (pageAudioCleanupDone) return;
+  pageAudioCleanupDone = true;
+  stopMusic({ broadcast: true, publish: false, broadcastType: "shutdown" });
+  stopActiveSpeech();
+}
+
+function restoreMusicAfterPageShow() {
+  pageAudioCleanupDone = false;
+  if (state.musicEnabled && els.musicButton.dataset.audioState === "off") {
+    els.musicButton.dataset.audioState = "idle";
+    updateMusicButton();
+  }
+}
+
+function pauseMusicForHiddenPage() {
+  if (document.visibilityState === "hidden") {
+    stopMusic({ broadcast: false, publish: false });
+    return;
+  }
+  if (state.musicEnabled && els.musicButton.dataset.audioState === "off") {
+    els.musicButton.dataset.audioState = "idle";
+    updateMusicButton();
+  }
 }
 
 function setupMusicSingleton() {
@@ -1196,7 +1388,7 @@ function setupMusicSingleton() {
     try {
       musicChannel = new BroadcastChannel(MUSIC_STOP_CHANNEL);
       musicChannel.addEventListener("message", (event) => {
-        if (event.data?.type === "stop") handleExternalMusicStop(event.data.source);
+        handleMusicStopPayload(event.data);
       });
     } catch {
       musicChannel = null;
@@ -1208,7 +1400,7 @@ function setupMusicSingleton() {
     try {
       const payload = JSON.parse(event.newValue);
       if (event.key === MUSIC_STOP_CHANNEL) {
-        handleExternalMusicStop(payload.source);
+        handleMusicStopPayload(payload);
       } else if (event.key === MUSIC_OWNER_KEY) {
         yieldToExternalMusicOwner(payload);
       }
@@ -1217,8 +1409,13 @@ function setupMusicSingleton() {
     }
   });
 
-  window.addEventListener("pagehide", () => stopMusic({ broadcast: false }));
-  window.addEventListener("beforeunload", () => stopMusic({ broadcast: false }));
+  document.addEventListener("visibilitychange", pauseMusicForHiddenPage);
+  window.addEventListener("pagehide", stopMusicForPageExit);
+  window.addEventListener("pageshow", restoreMusicAfterPageShow);
+  window.addEventListener("beforeunload", stopMusicForPageExit);
+  window.addEventListener("unload", stopMusicForPageExit);
+  document.addEventListener("freeze", stopMusicForPageExit);
+  document.addEventListener("resume", restoreMusicAfterPageShow);
   setupMusicOwnershipMonitor();
   broadcastMusicStop();
 }
@@ -1228,7 +1425,7 @@ function shouldIgnoreMusicUnlock(event) {
   if (!(target instanceof Element)) return false;
   return Boolean(
     target.closest(
-      "#musicButton, #languageButton, #rulesButton, #rulesCloseButton, #logToggleButton, #modalNextRound, #suitModal, #rulesModal, #roundModal",
+      "#musicButton, #voiceButton, #languageButton, #rulesButton, #rulesCloseButton, #logToggleButton, #modalNextRound, #suitModal, #rulesModal, #roundModal",
     ),
   );
 }
@@ -1397,24 +1594,56 @@ function pickOpeningCard() {
   return opening;
 }
 
-function startRound() {
+function dealOrder() {
+  const order = [];
+  let playerIndex = state.dealerIndex;
+  for (let index = 0; index < PLAYER_COUNT; index += 1) {
+    order.push(playerIndex);
+    playerIndex = nextPlayerIndex(playerIndex);
+  }
+  return order;
+}
+
+async function dealInitialHands() {
+  const order = dealOrder();
+  for (let cardNumber = 1; cardNumber <= 5; cardNumber += 1) {
+    for (const playerIndex of order) {
+      const card = drawFromDeck();
+      if (!card) continue;
+      state.dealingTarget = playerIndex;
+      state.dealingCardNumber = cardNumber;
+      render();
+      await animateDealtCard(playerIndex);
+      players[playerIndex].hand.push(card);
+      render();
+      await wait(90);
+    }
+  }
+  state.dealingTarget = null;
+  state.dealingCardNumber = 0;
+}
+
+async function startRound() {
+  if (state.phase === "dealing") return;
   clearTurnTimer();
   state.round += 1;
   state.dealerIndex = mod(state.round - 1, PLAYER_COUNT);
   state.deck = createDeck();
   state.discard = [];
   state.direction = 1;
-  state.phase = "playing";
+  state.phase = "dealing";
   state.drawnThisTurn = false;
   state.drawnCardId = null;
   state.pendingSuitCardId = null;
   state.winnerIndex = null;
   state.aiThinkingIndex = null;
-  state.isAnimating = false;
+  state.isAnimating = true;
   state.isRulesOpen = false;
   state.animatingCard = null;
   state.lastAction = null;
   state.directionNotice = null;
+  state.dealingTarget = null;
+  state.dealingCardNumber = 0;
   state.currentNumber = null;
   state.log = [];
   els.rulesModal.classList.remove("is-open");
@@ -1424,17 +1653,16 @@ function startRound() {
     player.hand = [];
   });
 
-  for (let count = 0; count < 5; count += 1) {
-    players.forEach((player) => {
-      const card = drawFromDeck();
-      if (card) player.hand.push(card);
-    });
-  }
+  render();
+  await wait(180);
+  await dealInitialHands();
 
   const opening = pickOpeningCard();
   state.discard = [opening];
   state.currentSuit = opening.suit;
   state.currentNumber = opening.kind === "number" ? opening.number : null;
+  state.isAnimating = false;
+  state.phase = "playing";
 
   if (opening.kind === "reverse") {
     state.direction = -1;
@@ -1576,6 +1804,7 @@ async function playCard(playerIndex, cardId, chosenSuit = null) {
   if (directionChanged) {
     showDirectionNotice(playerIndex);
   }
+  speakPlayNarration(state.lastAction);
   state.drawnThisTurn = false;
   state.drawnCardId = null;
   state.pendingSuitCardId = null;
@@ -1604,9 +1833,7 @@ function endRound(winnerIndex) {
   players[winnerIndex].score += 1;
   saveScores();
   addLog("winner", { playerIndex: winnerIndex });
-  if (winnerIndex === HUMAN_INDEX) {
-    playHumanWinCue();
-  }
+  playRoundWinnerCue(winnerIndex);
   render();
 }
 
@@ -1808,10 +2035,12 @@ function render() {
   renderStaticText();
   renderLogToggle();
   updateArenaOverlayFrame();
+  renderWelcome();
   renderHeader();
   renderSeats();
   renderCenter();
   renderDirectionFlow();
+  renderDealBanner();
   renderHand();
   renderLog();
   renderDirectionNotice();
@@ -1840,7 +2069,12 @@ function renderStaticText() {
   els.brandTitle.textContent = text.brandTitle;
   els.languageButton.textContent = text.languageButton;
   els.languageButton.setAttribute("aria-label", text.switchLanguageLabel);
+  els.welcomeKicker.textContent = text.welcomeKicker;
+  els.welcomeTitle.textContent = text.welcomeTitle;
+  els.welcomeSubtitle.textContent = text.welcomeSubtitle;
+  els.startGameButton.textContent = text.startGame;
   updateMusicButton();
+  updateVoiceButton();
   els.rulesButton.textContent = text.rulesButton;
   els.arena.setAttribute("aria-label", text.arenaLabel);
   els.centerTable.setAttribute("aria-label", text.centerTableLabel);
@@ -1864,6 +2098,12 @@ function renderStaticText() {
     ...otherRules.map(([title, body]) => `<section><h3>${escapeHtml(title)}</h3><p>${escapeHtml(body)}</p></section>`),
   ].join("");
   renderRulesCardPreview();
+}
+
+function renderWelcome() {
+  const isOpen = state.phase === "idle";
+  els.welcomeScreen.classList.toggle("is-open", isOpen);
+  els.welcomeScreen.setAttribute("aria-hidden", String(!isOpen));
 }
 
 function rulesPreviewCards() {
@@ -1902,7 +2142,14 @@ function renderHeader() {
   els.dealerLabel.textContent = t("dealer", { player: playerName(state.dealerIndex) });
   els.directionLabel.innerHTML = `<span class="direction-icon">${directionIcon()}</span>${directionText()}`;
 
-  if (state.isRulesOpen && state.phase === "playing") {
+  if (state.phase === "idle") {
+    els.statusLine.textContent = t("statusWelcome");
+  } else if (state.phase === "dealing") {
+    els.statusLine.textContent = t("statusDealing", {
+      player: state.dealingTarget !== null ? playerName(state.dealingTarget) : playerName(state.dealerIndex),
+      card: state.dealingCardNumber || 1,
+    });
+  } else if (state.isRulesOpen && state.phase === "playing") {
     els.statusLine.textContent = t("statusPaused", { suit: suitStatusName(state.currentSuit) });
   } else if (state.phase === "roundOver") {
     els.statusLine.textContent = t("statusRoundOver", { player: playerName(state.winnerIndex) });
@@ -1920,13 +2167,14 @@ function renderSeats() {
     const seat = document.querySelector(`#seat-${index}`);
     const isActive = state.phase === "playing" && !state.isRulesOpen && state.currentPlayer === index;
     const isThinking = !state.isRulesOpen && state.aiThinkingIndex === index;
+    const isDealing = state.phase === "dealing" && state.dealingTarget === index;
     const isHuman = index === HUMAN_INDEX;
     const hiddenCount = Math.min(player.hand.length, 6);
     const callout = player.hand.length === 1 ? `<span class="callout">${t("calling")}</span>` : "";
     const turnChip = isActive ? `<span class="turn-chip">${t("turnChip")}</span>` : "";
 
     seat.innerHTML = `
-      <article class="player-panel ${isActive ? "is-active" : ""} ${isThinking ? "is-thinking" : ""} ${isHuman ? "is-human" : ""}">
+      <article class="player-panel ${isActive ? "is-active" : ""} ${isThinking ? "is-thinking" : ""} ${isDealing ? "is-dealing" : ""} ${isHuman ? "is-human" : ""}">
         <div class="score-badge">${t("score", { score: player.score })}</div>
         ${turnChip}
         <div class="avatar ${isHuman ? "human" : player.kind}">${playerShortName(index)}</div>
@@ -1936,6 +2184,7 @@ function renderSeats() {
           ${index === state.dealerIndex ? `<span>${t("dealerChip")}</span>` : ""}
           ${callout}
           ${isThinking ? `<span class="thinking-chip">${t("thinkingChip")}</span>` : ""}
+          ${isDealing ? `<span>${t("dealingChip")}</span>` : ""}
         </div>
         <div class="mini-hand" aria-hidden="true">
           ${Array.from({ length: hiddenCount }, () => '<span class="mini-card"></span>').join("")}
@@ -2007,27 +2256,70 @@ function renderDirectionFlow() {
   });
 }
 
+function renderDealBanner() {
+  const isVisible = state.phase === "dealing";
+  els.dealBanner.classList.toggle("is-visible", isVisible);
+  if (!isVisible) {
+    els.dealBanner.innerHTML = "";
+    return;
+  }
+
+  const order = dealOrder();
+  const current = state.dealingTarget;
+  els.dealBanner.innerHTML = `
+    <div class="deal-title">${escapeHtml(t("dealOrderTitle"))}</div>
+    <div class="deal-status">${escapeHtml(
+      t("dealingTo", {
+        player: current !== null ? playerName(current) : playerName(order[0]),
+        card: state.dealingCardNumber || 1,
+      }),
+    )}</div>
+    <div class="deal-order">
+      ${order
+        .map(
+          (playerIndex, index) => `
+            <span class="deal-chip ${playerIndex === current ? "is-current" : ""}">${escapeHtml(playerName(playerIndex))}</span>
+            ${index < order.length - 1 ? '<span class="deal-arrow">→</span>' : ""}
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderCenter() {
   const top = topCard();
-  const suit = SUIT_BY_ID[state.currentSuit];
+  const suit = SUIT_BY_ID[state.currentSuit] || SUIT_BY_ID.spade;
   const specialCard = state.animatingCard && isSpecialCard(state.animatingCard) ? state.animatingCard : null;
   const visibleSpecialAction = state.lastAction?.isSpecial ? state.lastAction : null;
   const shouldShowSpecial = Boolean(specialCard || visibleSpecialAction);
   const baseCard = shouldShowSpecial ? visibleSpecialAction?.previousTopCard || top : top;
-  const specialEffectText = specialCard
-    ? t("specialPlaying", { card: cardName(specialCard) })
-    : visibleSpecialAction
-      ? describeCardEffect(visibleSpecialAction)
-      : t("waitingSpecial");
+  const specialEffectText =
+    state.phase === "idle"
+      ? t("tableWaiting")
+      : state.phase === "dealing"
+        ? t("dealingTo", {
+            player: state.dealingTarget !== null ? playerName(state.dealingTarget) : playerName(state.dealerIndex),
+            card: state.dealingCardNumber || 1,
+          })
+        : specialCard
+          ? t("specialPlaying", { card: cardName(specialCard) })
+          : visibleSpecialAction
+            ? describeCardEffect(visibleSpecialAction)
+            : t("waitingSpecial");
 
-  els.activeSuit.innerHTML = `${t("activeSuit")} <span class="suit-symbol ${suit.tone}">${suit.symbol}</span> ${suitName(state.currentSuit)} · ${escapeHtml(currentNumberStatus())}`;
+  if (state.phase === "idle" || state.phase === "dealing") {
+    els.activeSuit.textContent = `${t("activeSuit")} · ${state.phase === "idle" ? t("tableWaiting") : t("dealingChip")}`;
+  } else {
+    els.activeSuit.innerHTML = `${t("activeSuit")} <span class="suit-symbol ${suit.tone}">${suit.symbol}</span> ${suitName(state.currentSuit)} · ${escapeHtml(currentNumberStatus())}`;
+  }
   els.drawCount.textContent = cardCount(state.deck.length);
   els.discardCount.textContent = cardCount(state.discard.length);
   els.discardSlotLabel.textContent = shouldShowSpecial ? t("previousTopCard") : t("topCard");
   els.discardCard.setAttribute("aria-label", t("tableTopCardLabel"));
   els.cardStage.classList.toggle("has-special", shouldShowSpecial);
   els.discardCard.innerHTML = "";
-  els.discardCard.appendChild(renderCard(baseCard, { interactive: false }));
+  els.discardCard.appendChild(baseCard ? renderCard(baseCard, { interactive: false }) : renderCardBack("55"));
   els.specialPlayPanel.classList.toggle("is-visible", shouldShowSpecial);
   els.playedSpecialCard.innerHTML = "";
   if (visibleSpecialAction?.card && !specialCard) {
@@ -2035,7 +2327,14 @@ function renderCenter() {
   }
   els.specialEffectText.textContent = specialEffectText;
   els.turnRibbon.textContent =
-    state.isRulesOpen && state.phase === "playing"
+    state.phase === "idle"
+      ? t("statusWelcome")
+      : state.phase === "dealing"
+        ? t("statusDealing", {
+            player: state.dealingTarget !== null ? playerName(state.dealingTarget) : playerName(state.dealerIndex),
+            card: state.dealingCardNumber || 1,
+          })
+        : state.isRulesOpen && state.phase === "playing"
       ? t("turnPaused")
       : state.phase === "roundOver"
       ? t("roundOver")
@@ -2067,7 +2366,11 @@ function renderHand() {
     els.humanHand.appendChild(renderCard(card, { interactive: true, playable, drawn, disabled }));
   });
 
-  if (state.isRulesOpen && state.phase === "playing") {
+  if (state.phase === "idle") {
+    els.handHint.textContent = t("hintWelcome");
+  } else if (state.phase === "dealing") {
+    els.handHint.textContent = t("hintDealing");
+  } else if (state.isRulesOpen && state.phase === "playing") {
     els.handHint.textContent = t("hintPaused");
   } else if (state.phase === "roundOver") {
     els.handHint.textContent = t("hintRoundOver");
@@ -2153,6 +2456,84 @@ function wait(ms) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function renderCardBack(label = "55") {
+  const el = document.createElement("div");
+  el.className = "card card-back";
+  el.innerHTML = `<span class="back-sigil">${escapeHtml(label)}</span>`;
+  return el;
+}
+
+function getDealTargetRect(playerIndex) {
+  if (playerIndex === HUMAN_INDEX) {
+    return els.humanHand.getBoundingClientRect() || els.handZone.getBoundingClientRect();
+  }
+
+  return (
+    document.querySelector(`#seat-${playerIndex} .mini-hand`)?.getBoundingClientRect() ||
+    document.querySelector(`#seat-${playerIndex} .player-panel`)?.getBoundingClientRect()
+  );
+}
+
+async function animateDealtCard(playerIndex) {
+  const sourceRect = els.drawPileCard.getBoundingClientRect();
+  const targetRect = getDealTargetRect(playerIndex);
+
+  if (!sourceRect || !targetRect) {
+    await wait(120);
+    return;
+  }
+
+  const flyingCard = renderCardBack("55");
+  const width = Math.min(sourceRect.width, 78);
+  const height = Math.min(sourceRect.height, 112);
+  const startLeft = sourceRect.left + sourceRect.width / 2 - width / 2;
+  const startTop = sourceRect.top + sourceRect.height / 2 - height / 2;
+  const endLeft = targetRect.left + targetRect.width / 2 - width / 2;
+  const endTop = targetRect.top + targetRect.height / 2 - height / 2;
+
+  flyingCard.classList.add("dealing-card-flight");
+  flyingCard.dataset.player = t("dealingTo", { player: playerName(playerIndex), card: state.dealingCardNumber });
+  Object.assign(flyingCard.style, {
+    left: `${startLeft}px`,
+    top: `${startTop}px`,
+    width: `${width}px`,
+    height: `${height}px`,
+  });
+  document.body.appendChild(flyingCard);
+
+  const deltaX = endLeft - startLeft;
+  const deltaY = endTop - startTop;
+  const curveY = playerIndex === HUMAN_INDEX ? -36 : 30;
+
+  try {
+    const animation = flyingCard.animate(
+      [
+        {
+          opacity: 0.4,
+          transform: "translate(0, 0) scale(0.86) rotate(-8deg)",
+        },
+        {
+          opacity: 1,
+          transform: `translate(${deltaX * 0.55}px, ${deltaY * 0.45 + curveY}px) scale(1.04) rotate(5deg)`,
+        },
+        {
+          opacity: 1,
+          transform: `translate(${deltaX}px, ${deltaY}px) scale(0.72) rotate(0deg)`,
+        },
+      ],
+      {
+        duration: 360,
+        easing: "cubic-bezier(.2,.78,.2,1)",
+      },
+    );
+    await animation.finished;
+  } catch {
+    await wait(360);
+  } finally {
+    flyingCard.remove();
+  }
 }
 
 async function animatePlayedCard(playerIndex, card) {
@@ -2444,6 +2825,7 @@ els.drawButton.addEventListener("click", () => {
 });
 
 els.modalNextRound.addEventListener("click", startRound);
+els.startGameButton.addEventListener("click", startRound);
 els.rulesButton.addEventListener("click", openRulesModal);
 els.rulesCloseButton.addEventListener("click", closeRulesModal);
 els.logToggleButton.addEventListener("click", () => {
@@ -2463,6 +2845,14 @@ els.musicButton.addEventListener("click", () => {
   state.musicEnabled = false;
   saveMusicPreference();
   stopMusic({ broadcast: true });
+});
+els.voiceButton.addEventListener("click", () => {
+  state.voiceEnabled = !state.voiceEnabled;
+  if (!state.voiceEnabled) {
+    stopActiveSpeech();
+    setBackgroundMusicVolume(MUSIC_VOLUME);
+  }
+  updateVoiceButton();
 });
 els.languageButton.addEventListener("click", () => {
   state.language = state.language === "en" ? "zh" : "en";
@@ -2504,4 +2894,4 @@ loadMusicPreference();
 updateMusicButton();
 setupMusicSingleton();
 setupMusicAutoplay();
-startRound();
+render();
