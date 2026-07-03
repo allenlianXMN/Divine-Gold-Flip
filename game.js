@@ -1625,6 +1625,7 @@ async function dealInitialHands() {
 
 async function startRound() {
   if (state.phase === "dealing") return;
+  closeWelcomeScreen();
   clearTurnTimer();
   state.round += 1;
   state.dealerIndex = mod(state.round - 1, PLAYER_COUNT);
@@ -2104,6 +2105,11 @@ function renderWelcome() {
   const isOpen = state.phase === "idle";
   els.welcomeScreen.classList.toggle("is-open", isOpen);
   els.welcomeScreen.setAttribute("aria-hidden", String(!isOpen));
+}
+
+function closeWelcomeScreen() {
+  els.welcomeScreen.classList.remove("is-open");
+  els.welcomeScreen.setAttribute("aria-hidden", "true");
 }
 
 function rulesPreviewCards() {

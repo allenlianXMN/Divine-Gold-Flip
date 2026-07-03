@@ -1935,10 +1935,6 @@ button.card.playable:hover:not(:disabled) {
   display: grid;
 }
 
-.welcome-screen[aria-hidden="false"] {
-  display: grid;
-}
-
 .welcome-panel {
   width: min(460px, calc(100vw - 40px));
   display: grid;
