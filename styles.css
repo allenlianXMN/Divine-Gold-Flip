@@ -2593,12 +2593,12 @@ button.card.playable:hover:not(:disabled) {
 
   .seat-left {
     grid-column: 1;
-    grid-row: 1 / 4;
+    grid-row: 2;
   }
 
   .seat-right {
     grid-column: 3;
-    grid-row: 1 / 4;
+    grid-row: 2;
   }
 
   .seat-bottom {
