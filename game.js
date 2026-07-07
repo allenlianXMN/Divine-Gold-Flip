@@ -6,7 +6,7 @@ const SUITS = [
 ];
 
 const SUIT_BY_ID = Object.fromEntries(SUITS.map((suit) => [suit.id, suit]));
-const DEFAULT_LANGUAGE = "en";
+const DEFAULT_LANGUAGE = "zh";
 const SCORE_KEY = "divine-gold-flip:scores";
 const PLAYER_COUNT = 4;
 const HUMAN_INDEX = 0;

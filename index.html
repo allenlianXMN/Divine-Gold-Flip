@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Divine Gold Flip</title>
-    <link rel="stylesheet" href="./styles.css?v=analytics-1" />
+    <title>神兽转向牌</title>
+    <link rel="stylesheet" href="./styles.css?v=default-zh-1" />
     <script>
       window.DIVINE_GOLD_FLIP_ANALYTICS = {
         googleMeasurementId: "",
@@ -15,16 +15,16 @@
     <div class="app">
       <header class="topbar">
         <div class="brand">
-          <span class="brand-mark" id="brandMark" aria-hidden="true">D</span>
+          <span class="brand-mark" id="brandMark" aria-hidden="true">令</span>
           <div>
-            <h1 id="brandTitle">Divine Gold Flip</h1>
-            <p id="statusLine">Shuffling...</p>
+            <h1 id="brandTitle">神兽转向牌</h1>
+            <p id="statusLine">洗牌中...</p>
           </div>
         </div>
         <div class="round-strip">
-          <span id="roundLabel">Round 1</span>
-          <span id="dealerLabel">Dealer: You</span>
-          <button class="music-button is-on" id="musicButton" type="button" aria-label="Music on" aria-pressed="true">
+          <span id="roundLabel">第 1 局</span>
+          <span id="dealerLabel">庄家: 你</span>
+          <button class="music-button is-on" id="musicButton" type="button" aria-label="背景音乐已开启，点击关闭。" aria-pressed="true">
             <svg class="music-icon music-icon-on" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M9 18.5V6.5l10-2v11" />
               <path d="M9 8.5l10-2" />
@@ -37,7 +37,7 @@
               <path d="M21 9l-4 4" />
             </svg>
           </button>
-          <button class="voice-button is-on" id="voiceButton" type="button" aria-label="Voice on" aria-pressed="true">
+          <button class="voice-button is-on" id="voiceButton" type="button" aria-label="语音播报已开启，点击关闭。" aria-pressed="true">
             <svg class="voice-icon voice-icon-on" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M4 14v-4h4l5-4v12l-5-4H4z" />
               <path d="M16 8.5c1.1.9 1.7 2.1 1.7 3.5s-.6 2.6-1.7 3.5" />
@@ -49,62 +49,62 @@
               <path d="M21 9l-4 4" />
             </svg>
           </button>
-          <button class="rules-button" id="rulesButton" type="button">Rules</button>
-          <button class="language-button" id="languageButton" type="button" aria-label="Switch language">中文</button>
+          <button class="rules-button" id="rulesButton" type="button">规则</button>
+          <button class="language-button" id="languageButton" type="button" aria-label="切换到英文">English</button>
         </div>
-        <div class="direction-top-badge" id="directionLabel" aria-live="polite">Clockwise</div>
+        <div class="direction-top-badge" id="directionLabel" aria-live="polite">顺时针</div>
       </header>
 
-      <main class="arena" id="arena" aria-label="Divine Gold Flip table">
+      <main class="arena" id="arena" aria-label="神兽转向牌牌桌">
         <section class="seat seat-top" id="seat-2" aria-live="polite"></section>
         <section class="seat seat-left" id="seat-3" aria-live="polite"></section>
 
-        <section class="center-table" id="centerTable" aria-label="Table center">
+        <section class="center-table" id="centerTable" aria-label="牌桌中央">
           <div class="pile-row">
             <div class="pile-block">
-              <div class="pile-title" id="drawPileTitle">Draw Pile</div>
-              <button class="card card-back pile-card" id="drawPileCard" type="button" aria-label="Draw pile">
+              <div class="pile-title" id="drawPileTitle">抽牌堆</div>
+              <button class="card card-back pile-card" id="drawPileCard" type="button" aria-label="抽牌堆">
                 <span class="back-sigil">55</span>
               </button>
-              <div class="pile-count" id="drawCount">0 cards</div>
+              <div class="pile-count" id="drawCount">0 张</div>
             </div>
 
             <div class="table-core">
               <div class="table-status-row">
-                <div class="active-suit" id="activeSuit">Active Suit</div>
+                <div class="active-suit" id="activeSuit">当前花色</div>
               </div>
               <div class="card-stage">
                 <div class="table-card-slot">
-                  <div class="slot-label" id="discardSlotLabel">Top Card</div>
-                  <div class="discard-wrap" id="discardCard" aria-label="Table top card"></div>
+                  <div class="slot-label" id="discardSlotLabel">桌面顶牌</div>
+                  <div class="discard-wrap" id="discardCard" aria-label="桌面基准牌"></div>
                 </div>
                 <div class="special-play" id="specialPlayPanel" aria-live="polite">
-                  <div class="slot-label" id="specialSlotLabel">Just Played</div>
+                  <div class="slot-label" id="specialSlotLabel">刚打出</div>
                   <div class="special-card-slot" id="playedSpecialCard"></div>
                 </div>
-                <div class="special-effect" id="specialEffectText">Waiting for a special card</div>
+                <div class="special-effect" id="specialEffectText">等待特殊牌</div>
               </div>
-              <div class="turn-ribbon" id="turnRibbon">Waiting</div>
+              <div class="turn-ribbon" id="turnRibbon">等待开始</div>
             </div>
 
             <div class="pile-block">
-              <div class="pile-title" id="discardPileTitle">Discard Pile</div>
+              <div class="pile-title" id="discardPileTitle">弃牌堆</div>
               <div class="mini-stack" id="discardStack" aria-hidden="true"></div>
-              <div class="pile-count" id="discardCount">0 cards</div>
+              <div class="pile-count" id="discardCount">0 张</div>
             </div>
           </div>
 
           <div class="action-bar">
             <button id="drawButton" class="action-button primary" type="button">
               <span aria-hidden="true">+</span>
-              <span id="drawButtonLabel">Draw</span>
+              <span id="drawButtonLabel">摸牌</span>
             </button>
           </div>
         </section>
 
         <div class="deal-banner" id="dealBanner" aria-live="polite"></div>
 
-        <div class="direction-flow" id="directionFlow" aria-live="polite" aria-label="Clockwise">
+        <div class="direction-flow" id="directionFlow" aria-live="polite" aria-label="顺时针">
           <svg class="direction-flow-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <marker id="flowArrowHead" markerWidth="4.4" markerHeight="4.4" refX="3.7" refY="2.2" orient="auto">
@@ -122,21 +122,21 @@
         <section class="seat seat-bottom" id="seat-0" aria-live="polite"></section>
       </main>
 
-      <section class="hand-zone" id="handZone" aria-label="Your hand">
+      <section class="hand-zone" id="handZone" aria-label="你的手牌">
         <div class="hand-head">
           <div>
-            <h2 id="handTitle">Your Hand</h2>
-            <p id="handHint">Click a playable card on your turn.</p>
+            <h2 id="handTitle">你的手牌</h2>
+            <p id="handHint">点击高亮牌出牌。</p>
           </div>
-          <div class="hand-count" id="humanHandCount">0 cards</div>
+          <div class="hand-count" id="humanHandCount">0 张</div>
         </div>
         <div class="hand" id="humanHand"></div>
       </section>
 
-      <button class="log-toggle" id="logToggleButton" type="button" aria-controls="logPanel" aria-expanded="false">Log</button>
+      <button class="log-toggle" id="logToggleButton" type="button" aria-controls="logPanel" aria-expanded="false">记录</button>
 
-      <aside class="log-panel" id="logPanel" aria-label="Game log" aria-hidden="true">
-        <div class="log-title" id="logTitle">Game Log</div>
+      <aside class="log-panel" id="logPanel" aria-label="对局记录" aria-hidden="true">
+        <div class="log-title" id="logTitle">对局记录</div>
         <ol id="gameLog"></ol>
       </aside>
     </div>
@@ -148,10 +148,10 @@
           <span class="welcome-card"></span>
           <span class="welcome-card"></span>
         </div>
-        <p class="welcome-kicker" id="welcomeKicker">Divine Gold Flip</p>
-        <h2 id="welcomeTitle">Welcome to Divine Gold Flip</h2>
-        <p id="welcomeSubtitle">Press start to deal the first round.</p>
-        <button class="start-game-button" id="startGameButton" type="button">Start Game</button>
+        <p class="welcome-kicker" id="welcomeKicker">神兽转向牌</p>
+        <h2 id="welcomeTitle">欢迎来到神兽转向牌</h2>
+        <p id="welcomeSubtitle">点击开始后发牌，并展示每一家的发牌顺序。</p>
+        <button class="start-game-button" id="startGameButton" type="button">开始游戏</button>
       </section>
     </div>
 
@@ -160,30 +160,30 @@
 
     <div class="modal" id="suitModal" aria-hidden="true">
       <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="suitModalTitle">
-        <h2 id="suitModalTitle">Choose the next suit</h2>
+        <h2 id="suitModalTitle">指定下一轮花色</h2>
         <div class="suit-grid" id="suitChoices"></div>
       </div>
     </div>
 
     <div class="modal" id="roundModal" aria-hidden="true">
       <div class="modal-panel round-result" role="dialog" aria-modal="true" aria-labelledby="roundResultTitle">
-        <div class="result-mark" id="resultMark">Win</div>
-        <h2 id="roundResultTitle">Round Over</h2>
-        <p id="roundResultText">A player won</p>
-        <button id="modalNextRound" class="action-button primary" type="button">Continue</button>
+        <div class="result-mark" id="resultMark">胜</div>
+        <h2 id="roundResultTitle">本局结束</h2>
+        <p id="roundResultText">玩家获胜</p>
+        <button id="modalNextRound" class="action-button primary" type="button">继续下一局</button>
       </div>
     </div>
 
     <div class="modal" id="rulesModal" aria-hidden="true">
       <div class="modal-panel rules-panel" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
         <div class="rules-head">
-          <h2 id="rulesTitle">Rules</h2>
-          <button class="icon-button" id="rulesCloseButton" type="button" aria-label="Close rules">×</button>
+          <h2 id="rulesTitle">游戏规则</h2>
+          <button class="icon-button" id="rulesCloseButton" type="button" aria-label="关闭规则">×</button>
         </div>
         <div class="rules-content" id="rulesContent"></div>
       </div>
     </div>
 
-    <script src="./game.js?v=analytics-1"></script>
+    <script src="./game.js?v=default-zh-1"></script>
   </body>
 </html>
