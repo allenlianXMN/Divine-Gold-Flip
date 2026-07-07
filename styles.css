@@ -528,31 +528,173 @@ h1 {
 }
 
 .avatar {
-  width: 38px;
-  height: 38px;
+  --avatar-bg: #284b60;
+  --avatar-aura: rgba(255, 207, 98, 0.28);
+  --avatar-hair: #1c1718;
+  --avatar-face: #ffe3bf;
+  --avatar-robe: #9c394d;
+  --avatar-robe-deep: #5b2736;
+  --avatar-accent: #ffd66e;
+  position: relative;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
-  border: 2px solid rgba(255, 255, 255, 0.34);
+  border: 2px solid rgba(255, 218, 120, 0.92);
   border-radius: 50%;
-  color: #fff8ec;
-  background: #355c87;
-  font-weight: 900;
+  color: var(--avatar-accent);
+  background:
+    radial-gradient(circle at 35% 22%, rgba(255, 255, 255, 0.55), transparent 22%),
+    radial-gradient(circle at 50% 50%, rgba(255, 207, 98, 0.22), transparent 56%),
+    linear-gradient(145deg, #1a3d32, #071d19);
+  box-shadow:
+    inset 0 0 0 2px rgba(55, 31, 4, 0.42),
+    0 0 0 2px rgba(255, 207, 98, 0.2),
+    0 8px 18px rgba(10, 31, 24, 0.22),
+    0 0 16px rgba(255, 207, 98, 0.22);
+  overflow: hidden;
+}
+
+.avatar::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255, 248, 236, 0.34);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 .avatar.human {
-  background: #8d3e55;
+  --avatar-bg: #6f2838;
+  --avatar-aura: rgba(255, 122, 92, 0.35);
+  --avatar-face: #ffe0bd;
+  --avatar-hair: #241515;
+  --avatar-robe: #ba3347;
+  --avatar-robe-deep: #742239;
+  --avatar-accent: #ffe08a;
 }
 
 .avatar.ai-1 {
-  background: #2f7367;
+  --avatar-bg: #1e685f;
+  --avatar-aura: rgba(112, 224, 190, 0.32);
+  --avatar-face: #ffe6c8;
+  --avatar-hair: #2c2024;
+  --avatar-robe: #1d8a67;
+  --avatar-robe-deep: #174739;
+  --avatar-accent: #9debc7;
 }
 
 .avatar.ai-2 {
-  background: #7b5632;
+  --avatar-bg: #2e405a;
+  --avatar-aura: rgba(174, 233, 255, 0.3);
+  --avatar-face: #f2d4b4;
+  --avatar-hair: #101217;
+  --avatar-robe: #3f5f89;
+  --avatar-robe-deep: #222f4d;
+  --avatar-accent: #aee9ff;
 }
 
 .avatar.ai-3 {
-  background: #5c5a92;
+  --avatar-bg: #24533b;
+  --avatar-aura: rgba(255, 207, 98, 0.28);
+  --avatar-face: #f1d1ae;
+  --avatar-hair: #0f1710;
+  --avatar-robe: #2f7b4e;
+  --avatar-robe-deep: #163c2b;
+  --avatar-accent: #ffd66e;
+}
+
+.avatar-art {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.avatar-bg-circle {
+  fill: var(--avatar-bg);
+}
+
+.avatar-aura {
+  fill: var(--avatar-aura);
+}
+
+.avatar-hair-back,
+.avatar-hair,
+.avatar-bang,
+.avatar-side-locks,
+.avatar-beard {
+  fill: var(--avatar-hair);
+  stroke: rgba(20, 12, 8, 0.78);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+.avatar-side-locks,
+.avatar-beard,
+.avatar-hairpin {
+  display: none;
+}
+
+.avatar.human .avatar-side-locks,
+.avatar.ai-1 .avatar-side-locks,
+.avatar.human .avatar-hairpin,
+.avatar.ai-1 .avatar-hairpin,
+.avatar.ai-2 .avatar-beard,
+.avatar.ai-3 .avatar-beard {
+  display: block;
+}
+
+.avatar-face {
+  fill: var(--avatar-face);
+  stroke: rgba(55, 31, 4, 0.44);
+  stroke-width: 1.2;
+}
+
+.avatar-shoulders {
+  fill: var(--avatar-robe-deep);
+}
+
+.avatar-robe {
+  fill: var(--avatar-robe);
+  stroke: rgba(255, 248, 236, 0.22);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.avatar-eye {
+  fill: #1a1715;
+}
+
+.avatar-brow,
+.avatar-mouth,
+.avatar-collar,
+.avatar-ornament,
+.avatar-hairpin {
+  fill: none;
+  stroke: var(--avatar-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.avatar-brow,
+.avatar-mouth {
+  stroke: rgba(64, 29, 20, 0.82);
+  stroke-width: 1.4;
+}
+
+.avatar-symbol {
+  fill: var(--avatar-accent);
+  stroke: rgba(55, 31, 4, 0.55);
+  stroke-width: 0.6;
+  paint-order: stroke;
+  font-size: 11px;
+  font-weight: 900;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  font-family: "PingFang SC", "Microsoft YaHei", serif;
 }
 
 .player-name {
@@ -2492,8 +2634,8 @@ button.card.playable:hover:not(:disabled) {
   }
 
   .avatar {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     font-size: 12px;
   }
 
@@ -2916,8 +3058,8 @@ button.card.playable:hover:not(:disabled) {
   }
 
   .avatar {
-    width: 25px;
-    height: 25px;
+    width: 28px;
+    height: 28px;
     font-size: 11px;
   }
 
@@ -3213,8 +3355,8 @@ button.card.playable:hover:not(:disabled) {
   }
 
   .avatar {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     font-size: 11px;
   }
 

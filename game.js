@@ -487,6 +487,37 @@ function playerShortName(playerIndex) {
   return players[playerIndex]?.shortNames[state.language] || players[playerIndex]?.shortNames[DEFAULT_LANGUAGE] || "";
 }
 
+function renderPlayerAvatar(playerIndex) {
+  const avatarSymbols = ["凤", "翠", "北", "西"];
+  const label = escapeHtml(playerName(playerIndex));
+  const symbol = avatarSymbols[playerIndex] || playerShortName(playerIndex);
+
+  return `
+    <div class="avatar avatar-player-${playerIndex} ${playerIndex === HUMAN_INDEX ? "human" : players[playerIndex].kind}" role="img" aria-label="${label} avatar">
+      <svg class="avatar-art" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <circle class="avatar-bg-circle" cx="32" cy="32" r="31"></circle>
+        <path class="avatar-aura" d="M13 44c4-13 12-23 20-23s16 10 20 23c-6 8-13 12-20 12s-14-4-20-12Z"></path>
+        <path class="avatar-hair-back" d="M17 34c0-14 7-24 16-24s15 9 15 23c0 8-4 17-15 20-12-4-16-11-16-19Z"></path>
+        <path class="avatar-shoulders" d="M11 58c2-12 11-18 22-18s20 6 22 18H11Z"></path>
+        <path class="avatar-robe" d="M20 58c2-8 6-13 13-13s11 5 13 13H20Z"></path>
+        <ellipse class="avatar-face" cx="33" cy="29" rx="11" ry="14"></ellipse>
+        <path class="avatar-hair" d="M20 27c2-12 8-18 15-18 7 1 12 7 13 18-5-5-10-7-16-8-4 3-8 5-12 8Z"></path>
+        <path class="avatar-bang" d="M25 19c2 5 5 7 10 8-3-4-3-8 0-13-4 1-8 3-10 5Z"></path>
+        <path class="avatar-side-locks" d="M21 25c-5 9-4 18 2 25M45 25c5 9 4 18-2 25"></path>
+        <path class="avatar-beard" d="M27 38c2 4 10 4 12 0 0 5-3 8-6 8s-6-3-6-8Z"></path>
+        <path class="avatar-hairpin" d="M40 16l9-4M42 11l5 8"></path>
+        <circle class="avatar-eye" cx="29" cy="30" r="1.4"></circle>
+        <circle class="avatar-eye" cx="37" cy="30" r="1.4"></circle>
+        <path class="avatar-brow" d="M26 27c2-1 4-1 6 0M34 27c2-1 4-1 6 0"></path>
+        <path class="avatar-mouth" d="M30 37c2 1.5 5 1.5 7 0"></path>
+        <path class="avatar-collar" d="M24 48l9 7 9-7"></path>
+        <path class="avatar-ornament" d="M24 16l8-8 8 8M28 14h8"></path>
+        <text class="avatar-symbol" x="47" y="20">${escapeHtml(symbol)}</text>
+      </svg>
+    </div>
+  `;
+}
+
 function suitName(suitId) {
   const suit = SUIT_BY_ID[suitId];
   return suit?.names[state.language] || suit?.names[DEFAULT_LANGUAGE] || "";
@@ -2261,7 +2292,7 @@ function renderSeats() {
       <article class="player-panel ${isActive ? "is-active" : ""} ${isThinking ? "is-thinking" : ""} ${isDealing ? "is-dealing" : ""} ${isHuman ? "is-human" : ""}">
         <div class="score-badge">${t("score", { score: player.score })}</div>
         ${turnChip}
-        <div class="avatar ${isHuman ? "human" : player.kind}">${playerShortName(index)}</div>
+        ${renderPlayerAvatar(index)}
         <div class="player-name">${playerName(index)}</div>
         <div class="player-meta">
           <span>${t("handCount", { count: player.hand.length })}</span>
