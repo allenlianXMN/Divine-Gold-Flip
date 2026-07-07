@@ -679,14 +679,15 @@ function directionIcon() {
 function updateMusicButton() {
   const audioState = els.musicButton.dataset.audioState || (state.musicEnabled ? "idle" : "off");
   const isPlaying = state.musicEnabled && audioState === "playing";
-  const isWaiting = state.musicEnabled && !isPlaying;
-  const label = isPlaying ? t("musicOnLabel") : isWaiting ? t("musicReadyLabel") : t("musicOffLabel");
-  els.musicButton.classList.toggle("is-on", isPlaying);
-  els.musicButton.classList.toggle("is-waiting", isWaiting);
+  const isOn = state.musicEnabled;
+  const isStarting = isOn && audioState === "starting";
+  const label = isPlaying ? t("musicOnLabel") : isOn ? t("musicReadyLabel") : t("musicOffLabel");
+  els.musicButton.classList.toggle("is-on", isOn);
+  els.musicButton.classList.toggle("is-waiting", isStarting);
   els.musicButton.classList.toggle("is-off", !state.musicEnabled);
   els.musicButton.setAttribute("aria-label", label);
-  els.musicButton.setAttribute("aria-pressed", String(isPlaying));
-  els.musicButton.dataset.music = isPlaying ? "on" : isWaiting ? "waiting" : "off";
+  els.musicButton.setAttribute("aria-pressed", String(isOn));
+  els.musicButton.dataset.music = isOn ? "on" : "off";
   els.musicButton.title = label;
 }
 
@@ -869,7 +870,7 @@ function readMusicOwner() {
 }
 
 function shouldYieldToMusicOwner(owner) {
-  return owner?.source && owner.source !== MUSIC_INSTANCE_ID && (owner.status === "playing" || owner.status === "stopped");
+  return owner?.source && owner.source !== MUSIC_INSTANCE_ID && owner.status === "playing" && Date.now() - Number(owner.time || 0) < 3000;
 }
 
 function yieldToExternalMusicOwner(owner) {
@@ -1697,6 +1698,7 @@ async function dealInitialHands() {
 async function startRound() {
   if (state.phase === "dealing") return;
   closeWelcomeScreen();
+  if (state.musicEnabled && els.musicButton.dataset.audioState !== "playing") startMusic();
   speakText(t("voiceRoundStart"), {
     interrupt: true,
     rate: state.language === "zh" ? 1 : 0.9,
@@ -2300,8 +2302,11 @@ function renderDirectionFlow() {
     const y = side === "top" ? rect.top : side === "bottom" ? rect.bottom : rect.top + rect.height / 2;
     return { x: x - flowRect.left, y: y - flowRect.top };
   };
-  const q = (start, control, end) =>
-    `M${Math.round(start.x)} ${Math.round(start.y)} Q${Math.round(control.x)} ${Math.round(control.y)} ${Math.round(end.x)} ${Math.round(end.y)}`;
+  const curve = Math.max(30, Math.min(96, Math.min(flowRect.width, flowRect.height) * 0.16));
+  const c = (start, controlStart, controlEnd, end) =>
+    `M${Math.round(start.x)} ${Math.round(start.y)} C${Math.round(controlStart.x)} ${Math.round(controlStart.y)} ${Math.round(
+      controlEnd.x,
+    )} ${Math.round(controlEnd.y)} ${Math.round(end.x)} ${Math.round(end.y)}`;
   const p = {
     southLeft: sideMidpoint(panels.south, "left"),
     southRight: sideMidpoint(panels.south, "right"),
@@ -2312,25 +2317,19 @@ function renderDirectionFlow() {
     eastTop: sideMidpoint(panels.east, "top"),
     eastBottom: sideMidpoint(panels.east, "bottom"),
   };
-  const controls = {
-    southwest: { x: p.westBottom.x, y: p.southLeft.y },
-    northwest: { x: p.westTop.x, y: p.northLeft.y },
-    northeast: { x: p.eastTop.x, y: p.northRight.y },
-    southeast: { x: p.eastBottom.x, y: p.southRight.y },
-  };
   const paths =
     state.direction === 1
       ? [
-          q(p.southLeft, controls.southwest, p.westBottom),
-          q(p.westTop, controls.northwest, p.northLeft),
-          q(p.northRight, controls.northeast, p.eastTop),
-          q(p.eastBottom, controls.southeast, p.southRight),
+          c(p.southLeft, { x: p.southLeft.x - curve, y: p.southLeft.y }, { x: p.westBottom.x, y: p.westBottom.y + curve }, p.westBottom),
+          c(p.westTop, { x: p.westTop.x, y: p.westTop.y - curve }, { x: p.northLeft.x - curve, y: p.northLeft.y }, p.northLeft),
+          c(p.northRight, { x: p.northRight.x + curve, y: p.northRight.y }, { x: p.eastTop.x, y: p.eastTop.y - curve }, p.eastTop),
+          c(p.eastBottom, { x: p.eastBottom.x, y: p.eastBottom.y + curve }, { x: p.southRight.x + curve, y: p.southRight.y }, p.southRight),
         ]
       : [
-          q(p.southRight, controls.southeast, p.eastBottom),
-          q(p.eastTop, controls.northeast, p.northRight),
-          q(p.northLeft, controls.northwest, p.westTop),
-          q(p.westBottom, controls.southwest, p.southLeft),
+          c(p.southRight, { x: p.southRight.x + curve, y: p.southRight.y }, { x: p.eastBottom.x, y: p.eastBottom.y + curve }, p.eastBottom),
+          c(p.eastTop, { x: p.eastTop.x, y: p.eastTop.y - curve }, { x: p.northRight.x + curve, y: p.northRight.y }, p.northRight),
+          c(p.northLeft, { x: p.northLeft.x - curve, y: p.northLeft.y }, { x: p.westTop.x, y: p.westTop.y - curve }, p.westTop),
+          c(p.westBottom, { x: p.westBottom.x, y: p.westBottom.y + curve }, { x: p.southLeft.x - curve, y: p.southLeft.y }, p.southLeft),
         ];
 
   paths.forEach((path, index) => {
