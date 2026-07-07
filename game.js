@@ -46,6 +46,7 @@ let pageAudioCleanupDone = false;
 let speechDuckingToken = 0;
 let speechEngineTouched = false;
 let activeSpeechUtterances = new Set();
+let dealCueDataUrl = "";
 let lastCardCueDataUrl = "";
 let victoryCueDataUrl = "";
 
@@ -1122,6 +1123,25 @@ function burst(time, start, duration, frequency, gain) {
   return Math.sin(Math.PI * 2 * frequency * time) * gain * attack * decay;
 }
 
+function pseudoNoise(time) {
+  const value = Math.sin(time * 17389.71 + Math.sin(time * 947.13) * 61.7) * 43758.5453;
+  return (value - Math.floor(value)) * 2 - 1;
+}
+
+function getDealCueDataUrl() {
+  if (!dealCueDataUrl) {
+    dealCueDataUrl = createSfxDataUrl(0.2, (time) => {
+      const phase = time / 0.2;
+      const envelope = Math.sin(Math.PI * Math.min(1, phase)) ** 0.7;
+      const paperSlide = pseudoNoise(time) * 0.2 * envelope * (1 - phase * 0.35);
+      const flick = Math.sin(Math.PI * 2 * (620 + 1220 * phase) * time) * 0.08 * envelope;
+      const landingTap = burst(time, 0.145, 0.045, 1180, 0.14);
+      return paperSlide + flick + landingTap;
+    });
+  }
+  return dealCueDataUrl;
+}
+
 function getLastCardCueDataUrl() {
   if (!lastCardCueDataUrl) {
     lastCardCueDataUrl = createSfxDataUrl(
@@ -1162,6 +1182,10 @@ function playSfx(dataUrl, volume = 0.8) {
 
 function playLastCardCue() {
   playSfx(getLastCardCueDataUrl(), 0.86);
+}
+
+function playDealCue() {
+  playSfx(getDealCueDataUrl(), 0.5);
 }
 
 function speechLanguage() {
@@ -2614,6 +2638,7 @@ async function animateDealtCard(playerIndex) {
     height: `${height}px`,
   });
   document.body.appendChild(flyingCard);
+  playDealCue();
 
   const deltaX = endLeft - startLeft;
   const deltaY = endTop - startTop;
