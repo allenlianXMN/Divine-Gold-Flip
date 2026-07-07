@@ -31,6 +31,7 @@ const MUSIC_INSTANCE_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`
 const MUSIC_CONTROLLER_KEY = "__divineGoldFlipMusicController";
 const MUSIC_REGISTRY_KEY = "__divineGoldFlipMusicAudios";
 const SFX_REGISTRY_KEY = "__divineGoldFlipSfxAudios";
+const ANALYTICS_STATE_KEY = "__divineGoldFlipAnalytics";
 const MUSIC_AUDIO_ATTRIBUTE = "data-divine-gold-flip-music";
 
 let nextCardId = 1;
@@ -570,6 +571,85 @@ function loadScores() {
 
 function saveScores() {
   localStorage.setItem(SCORE_KEY, JSON.stringify(players.map((player) => player.score)));
+}
+
+function analyticsState() {
+  try {
+    if (!window[ANALYTICS_STATE_KEY]) {
+      window[ANALYTICS_STATE_KEY] = {
+        googleMeasurementId: "",
+        googleScriptLoaded: false,
+        loadedEvents: new Set(),
+      };
+    }
+    return window[ANALYTICS_STATE_KEY];
+  } catch {
+    return {
+      googleMeasurementId: "",
+      googleScriptLoaded: false,
+      loadedEvents: new Set(),
+    };
+  }
+}
+
+function analyticsConfig() {
+  return window.DIVINE_GOLD_FLIP_ANALYTICS || {};
+}
+
+function configuredGoogleMeasurementId() {
+  const measurementId = String(analyticsConfig().googleMeasurementId || "").trim();
+  return /^G-[A-Z0-9]+$/i.test(measurementId) ? measurementId : "";
+}
+
+function initAnalytics() {
+  const measurementId = configuredGoogleMeasurementId();
+  if (!measurementId) return false;
+
+  const stateRef = analyticsState();
+  window.dataLayer = window.dataLayer || [];
+  window.gtag =
+    window.gtag ||
+    function gtag() {
+      window.dataLayer.push(arguments);
+    };
+
+  if (stateRef.googleMeasurementId !== measurementId) {
+    stateRef.googleMeasurementId = measurementId;
+    window.gtag("js", new Date());
+    window.gtag("config", measurementId, { send_page_view: false });
+  }
+
+  if (!stateRef.googleScriptLoaded) {
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`;
+    document.head.appendChild(script);
+    stateRef.googleScriptLoaded = true;
+  }
+
+  return true;
+}
+
+function trackAnalyticsEvent(eventName, params = {}) {
+  if (!initAnalytics()) return;
+  try {
+    window.gtag?.("event", eventName, {
+      app_name: "Divine Gold Flip",
+      app_language: state.language,
+      page_location: window.location.href,
+      ...params,
+    });
+  } catch {
+    // Analytics should never interrupt gameplay.
+  }
+}
+
+function trackAnalyticsEventOnce(eventName, params = {}) {
+  if (!configuredGoogleMeasurementId()) return;
+  const stateRef = analyticsState();
+  if (stateRef.loadedEvents.has(eventName)) return;
+  stateRef.loadedEvents.add(eventName);
+  trackAnalyticsEvent(eventName, params);
 }
 
 function loadMusicPreference() {
@@ -3000,7 +3080,12 @@ els.drawButton.addEventListener("click", () => {
 });
 
 els.modalNextRound.addEventListener("click", startRound);
-els.startGameButton.addEventListener("click", startRound);
+els.startGameButton.addEventListener("click", () => {
+  trackAnalyticsEvent("game_start_clicked", {
+    round_number: state.round + 1,
+  });
+  startRound();
+});
 els.rulesButton.addEventListener("click", openRulesModal);
 els.rulesCloseButton.addEventListener("click", closeRulesModal);
 els.logToggleButton.addEventListener("click", () => {
@@ -3075,3 +3160,4 @@ setupMusicSingleton();
 setupMusicAutoplay();
 setupVoiceUnlock();
 render();
+trackAnalyticsEventOnce("game_loaded");

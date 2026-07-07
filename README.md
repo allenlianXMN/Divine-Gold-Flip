@@ -45,6 +45,29 @@ Required local tools:
 - A modern browser.
 - Optional: Python 3, only if you want to run a local static server.
 
+## Analytics
+
+The game includes optional Google Analytics 4 event tracking for the public playable link.
+
+Because the app is hosted as a static GitHub/GitLab Pages site, it cannot count global visitors by itself without an analytics service. To enable production statistics:
+
+1. Create a Google Analytics 4 web data stream for the playable site.
+2. Copy the Measurement ID, for example `G-XXXXXXXXXX`.
+3. In `index.html`, set:
+
+```html
+window.DIVINE_GOLD_FLIP_ANALYTICS = {
+  googleMeasurementId: "G-XXXXXXXXXX",
+};
+```
+
+Tracked events:
+
+- `game_loaded`: fired once when the game page opens. Use this to estimate link opens or visitors.
+- `game_start_clicked`: fired when a player clicks Start Game. Use this to count people who actually started playing.
+
+Analytics starts from the moment the Measurement ID is configured and deployed; it cannot recover historical visits from before tracking was enabled.
+
 ## GitLab Pages
 
 This repository publishes the static game through GitLab Pages. The pipeline copies `index.html`, `game.js`, and `styles.css` into the `public/` artifact.
