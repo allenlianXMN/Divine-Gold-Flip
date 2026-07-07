@@ -21,6 +21,7 @@ const MUSIC_LOOP_STEPS = 32;
 const MUSIC_VOLUME = 0.24;
 const MUSIC_DUCK_VOLUME = 0.07;
 const SPEECH_VOLUME = 1;
+const VOICE_CONFIRM_VOLUME = 0.92;
 const MUSIC_STOP_CHANNEL = "divine-gold-flip:music-stop";
 const MUSIC_PREF_KEY = "divine-gold-flip:music-enabled";
 const MUSIC_OWNER_KEY = "divine-gold-flip:music-owner";
@@ -43,6 +44,8 @@ let musicOwnerTimer = 0;
 let releaseMusicLock = null;
 let pageAudioCleanupDone = false;
 let speechDuckingToken = 0;
+let speechEngineTouched = false;
+let activeSpeechUtterances = new Set();
 let lastCardCueDataUrl = "";
 let victoryCueDataUrl = "";
 
@@ -164,6 +167,8 @@ const TEXT = {
     voiceSuitChanged: "Suit changed to {symbol} {suit}.",
     voiceDirectionChanged: "Direction changed to {icon} {direction}.",
     voiceWinner: "Winner is {winner}.",
+    voiceRoundStart: "Game start.",
+    voiceOnConfirm: "Voice narration on.",
     specialPlaying: "{card} is being played",
     flyingCard: "{player} played",
     toastWrongTurn: "It is not that player's turn.",
@@ -311,6 +316,8 @@ const TEXT = {
     voiceSuitChanged: "花色改为 {symbol} {suit}。",
     voiceDirectionChanged: "方向改为 {icon} {direction}。",
     voiceWinner: "赢家是{winner}。",
+    voiceRoundStart: "游戏开始。",
+    voiceOnConfirm: "语音播报已开启。",
     specialPlaying: "{card} 正在打出",
     flyingCard: "{player} 出牌",
     toastWrongTurn: "还没轮到这位玩家。",
@@ -832,6 +839,7 @@ function stopActiveSfx() {
 function stopActiveSpeech() {
   try {
     window.speechSynthesis?.cancel();
+    activeSpeechUtterances.clear();
   } catch {
     // Speech synthesis cancellation is best-effort.
   }
@@ -1128,6 +1136,35 @@ function speechLanguage() {
   return state.language === "zh" ? "zh-CN" : "en-US";
 }
 
+function warmSpeechEngine() {
+  if (speechEngineTouched || !state.voiceEnabled) return;
+  try {
+    window.speechSynthesis?.resume?.();
+    window.speechSynthesis?.getVoices?.();
+    speechEngineTouched = true;
+  } catch {
+    // Mobile speech engines are inconsistent; narration will try again when needed.
+  }
+}
+
+function preferredSpeechVoice() {
+  try {
+    const synth = window.speechSynthesis;
+    const voices = synth?.getVoices?.() || [];
+    const lang = speechLanguage();
+    const prefix = lang.split("-")[0];
+    return (
+      voices.find((voice) => voice.lang === lang && voice.localService) ||
+      voices.find((voice) => voice.lang === lang) ||
+      voices.find((voice) => voice.lang?.startsWith(prefix) && voice.localService) ||
+      voices.find((voice) => voice.lang?.startsWith(prefix)) ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
 function speakText(text, { interrupt = true, rate = 0.96, pitch = 1.03, volume = SPEECH_VOLUME } = {}) {
   if (!canSpeakNow() || !text) return;
 
@@ -1137,20 +1174,44 @@ function speakText(text, { interrupt = true, rate = 0.96, pitch = 1.03, volume =
     const Utterance = window.SpeechSynthesisUtterance;
     if (!synth || !Utterance) return;
 
+    warmSpeechEngine();
     restoreMusicVolume = duckBackgroundMusicForSpeech();
-    if (interrupt) synth.cancel();
+    if (interrupt) {
+      synth.cancel();
+      activeSpeechUtterances.clear();
+    }
+    synth.resume?.();
     const utterance = new Utterance(text);
     utterance.lang = speechLanguage();
+    const voice = preferredSpeechVoice();
+    if (voice) utterance.voice = voice;
     utterance.rate = rate;
     utterance.pitch = pitch;
     utterance.volume = volume;
-    utterance.onend = restoreMusicVolume;
-    utterance.onerror = restoreMusicVolume;
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      activeSpeechUtterances.delete(utterance);
+      restoreMusicVolume?.();
+    };
+    utterance.onend = release;
+    utterance.onerror = release;
+    activeSpeechUtterances.add(utterance);
     synth.speak(utterance);
+    window.setTimeout(() => synth.resume?.(), 0);
   } catch {
     restoreMusicVolume?.();
     // Voice narration is optional and should never interrupt gameplay.
   }
+}
+
+function announceVoiceReady() {
+  speakText(t("voiceOnConfirm"), {
+    interrupt: true,
+    rate: state.language === "zh" ? 1 : 0.92,
+    volume: VOICE_CONFIRM_VOLUME,
+  });
 }
 
 function buildPlayNarration(action) {
@@ -1444,6 +1505,16 @@ function setupMusicAutoplay() {
   if (state.musicEnabled) startMusic();
 }
 
+function setupVoiceUnlock() {
+  const unlock = () => {
+    warmSpeechEngine();
+    document.removeEventListener("pointerdown", unlock);
+    document.removeEventListener("keydown", unlock);
+  };
+  document.addEventListener("pointerdown", unlock, { passive: true });
+  document.addEventListener("keydown", unlock);
+}
+
 function isSpecialCard(card) {
   return isWild(card) || card?.kind === "reverse";
 }
@@ -1626,6 +1697,11 @@ async function dealInitialHands() {
 async function startRound() {
   if (state.phase === "dealing") return;
   closeWelcomeScreen();
+  speakText(t("voiceRoundStart"), {
+    interrupt: true,
+    rate: state.language === "zh" ? 1 : 0.9,
+    volume: VOICE_CONFIRM_VOLUME,
+  });
   clearTurnTimer();
   state.round += 1;
   state.dealerIndex = mod(state.round - 1, PLAYER_COUNT);
@@ -2859,6 +2935,7 @@ els.voiceButton.addEventListener("click", () => {
     setBackgroundMusicVolume(MUSIC_VOLUME);
   }
   updateVoiceButton();
+  if (state.voiceEnabled) announceVoiceReady();
 });
 els.languageButton.addEventListener("click", () => {
   state.language = state.language === "en" ? "zh" : "en";
@@ -2900,4 +2977,5 @@ loadMusicPreference();
 updateMusicButton();
 setupMusicSingleton();
 setupMusicAutoplay();
+setupVoiceUnlock();
 render();

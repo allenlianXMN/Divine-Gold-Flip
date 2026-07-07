@@ -3078,3 +3078,393 @@ button.card.playable:hover:not(:disabled) {
     padding-top: 12px;
   }
 }
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .app {
+    --log-column-width: 0px;
+    --direction-offset: 0px;
+    --app-gap: 4px;
+    padding: 5px;
+    gap: var(--app-gap);
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .topbar {
+    min-height: 38px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 6px;
+  }
+
+  .brand {
+    gap: 6px;
+  }
+
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+
+  h1 {
+    font-size: 16px;
+  }
+
+  .brand p {
+    max-width: 260px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 10px;
+  }
+
+  .round-strip {
+    gap: 4px;
+  }
+
+  .round-strip > span {
+    display: none;
+  }
+
+  .music-button,
+  .voice-button {
+    width: 30px;
+    height: 30px;
+  }
+
+  .music-icon,
+  .voice-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .rules-button,
+  .language-button {
+    min-height: 30px;
+    padding: 4px 7px;
+    font-size: 10px;
+  }
+
+  .direction-top-badge {
+    top: 50%;
+    min-width: 104px;
+    padding: 4px 7px;
+    font-size: 10px;
+    transform: translate(-50%, -50%);
+  }
+
+  .arena {
+    grid-template-columns: minmax(78px, 0.7fr) minmax(256px, 1.75fr) minmax(78px, 0.7fr);
+    grid-template-rows: minmax(54px, 0.52fr) minmax(104px, 0.96fr) minmax(94px, 0.78fr);
+    min-height: 0;
+    height: 100%;
+    padding: 5px;
+    gap: 4px;
+  }
+
+  .seat-top {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .seat-left {
+    grid-column: 1;
+    grid-row: 1 / 4;
+  }
+
+  .seat-right {
+    grid-column: 3;
+    grid-row: 1 / 4;
+  }
+
+  .seat-bottom {
+    grid-column: 3;
+    grid-row: 3;
+    align-items: end;
+    justify-content: center;
+  }
+
+  .center-table {
+    grid-column: 2;
+    grid-row: 2;
+    width: min(100%, 430px);
+    padding: 5px;
+    gap: 4px;
+  }
+
+  .player-panel {
+    max-width: 96px;
+    min-height: 62px;
+    padding: 4px;
+    gap: 2px;
+  }
+
+  .seat-left .player-panel,
+  .seat-right .player-panel {
+    max-width: 72px;
+    min-height: 82px;
+  }
+
+  .seat-top .player-panel,
+  .seat-bottom .player-panel {
+    max-width: 104px;
+  }
+
+  .avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+
+  .player-name {
+    font-size: 10px;
+  }
+
+  .player-meta {
+    gap: 3px;
+    font-size: 8px;
+  }
+
+  .score-badge {
+    top: -8px;
+    min-width: 40px;
+    padding: 2px 5px;
+    font-size: 8px;
+  }
+
+  .turn-chip {
+    top: -10px;
+    right: -8px;
+    min-width: 34px;
+    padding: 3px 5px;
+    font-size: 8px;
+  }
+
+  .mini-hand {
+    height: 17px;
+    gap: 2px;
+  }
+
+  .mini-card {
+    width: 10px;
+    height: 15px;
+    border-radius: 3px;
+  }
+
+  .pile-row {
+    grid-template-columns: 40px minmax(120px, 1fr) 40px;
+    gap: 4px;
+  }
+
+  .pile-title {
+    display: none;
+  }
+
+  .pile-count,
+  .slot-label,
+  .turn-ribbon,
+  .active-suit {
+    min-width: 0;
+    padding: 3px 5px;
+    font-size: 8px;
+  }
+
+  .mini-stack,
+  .pile-card {
+    width: 38px;
+    height: 52px;
+  }
+
+  .card {
+    width: 52px;
+    height: 76px;
+    border-radius: 7px;
+  }
+
+  .card-stage {
+    min-height: 78px;
+    grid-template-columns: 52px;
+    gap: 4px;
+  }
+
+  .card-stage.has-special {
+    grid-template-columns: 52px minmax(64px, 1fr);
+    min-height: 92px;
+  }
+
+  .discard-wrap,
+  .special-card-slot {
+    min-height: 76px;
+  }
+
+  .special-card-slot {
+    width: 52px;
+  }
+
+  .action-bar {
+    margin-top: 0;
+  }
+
+  .action-button {
+    min-height: 28px;
+    padding: 0 9px;
+    font-size: 10px;
+  }
+
+  .flow-path {
+    stroke-width: 10px;
+  }
+
+  .hand-zone {
+    grid-row: 2;
+    justify-self: start;
+    align-self: end;
+    width: min(330px, calc(100% - 12px));
+    margin: 0 0 5px 5px;
+    gap: 4px;
+    padding: 5px;
+  }
+
+  .hand-zone.is-expanded {
+    width: min(400px, calc(100% - 12px));
+  }
+
+  .hand-head h2 {
+    font-size: 12px;
+  }
+
+  .hand-zone .hand-count {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+
+  .hand {
+    min-height: 80px;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 10px 2px 3px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hand::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hand .card,
+  .hand-zone.is-expanded .hand .card {
+    width: 50px;
+    height: 72px;
+  }
+
+  .hand-zone.is-expanded .hand .card + .card {
+    margin-left: -4px;
+  }
+
+  .hand .rank,
+  .hand-zone.is-expanded .hand .rank {
+    font-size: 12px;
+  }
+
+  .hand .suit-symbol,
+  .hand-zone.is-expanded .hand .suit-symbol {
+    font-size: 11px;
+  }
+
+  .hand .pip-grid,
+  .hand-zone.is-expanded .hand .pip-grid {
+    inset: 16px 8px 14px;
+  }
+
+  .hand .pip,
+  .hand-zone.is-expanded .hand .pip {
+    font-size: 8px;
+  }
+
+  .hand .card-main,
+  .hand-zone.is-expanded .hand .card-main {
+    inset: 10px 4px;
+  }
+
+  .hand .joker-illustration,
+  .hand-zone.is-expanded .hand .joker-illustration,
+  .hand .beast-illustration,
+  .hand-zone.is-expanded .hand .beast-illustration {
+    width: 32px;
+    height: 34px;
+  }
+
+  .hand .joker-title,
+  .hand-zone.is-expanded .hand .joker-title,
+  .hand .beast-title,
+  .hand-zone.is-expanded .hand .beast-title {
+    max-width: 42px;
+    font-size: 7px;
+  }
+
+  .hand .joker-sub,
+  .hand-zone.is-expanded .hand .joker-sub,
+  .hand .beast-sub,
+  .hand-zone.is-expanded .hand .beast-sub {
+    max-width: 42px;
+    font-size: 5px;
+  }
+
+  .deal-banner {
+    top: 42px;
+    width: min(430px, calc(100% - 16px));
+    padding: 6px;
+  }
+
+  .deal-chip {
+    min-width: 44px;
+    padding: 3px 5px;
+    font-size: 9px;
+  }
+
+  .direction-notice {
+    top: calc(var(--arena-top) + 6px);
+    max-width: min(360px, calc(var(--arena-width) - 18px));
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .modal {
+    padding: 8px;
+  }
+
+  .modal-panel {
+    width: min(360px, calc(100vw - 16px));
+    max-height: calc(100dvh - 16px);
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .welcome-panel {
+    width: min(420px, calc(100vw - 18px));
+    padding: 16px 18px;
+    gap: 8px;
+  }
+
+  .welcome-card-fan {
+    width: 104px;
+    height: 58px;
+  }
+
+  .welcome-card {
+    width: 40px;
+    height: 56px;
+  }
+
+  .welcome-panel h2 {
+    font-size: 22px;
+  }
+
+  .welcome-panel p:not(.welcome-kicker) {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+}
