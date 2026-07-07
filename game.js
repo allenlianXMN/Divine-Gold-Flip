@@ -169,6 +169,7 @@ const TEXT = {
     voiceDirectionChanged: "Direction changed to {icon} {direction}.",
     voiceWinner: "Winner is {winner}.",
     voiceRoundStart: "Game start.",
+    voiceMustDraw: "No playable card. You must draw first.",
     voiceOnConfirm: "Voice narration on.",
     specialPlaying: "{card} is being played",
     flyingCard: "{player} played",
@@ -318,6 +319,7 @@ const TEXT = {
     voiceDirectionChanged: "方向改为 {icon} {direction}。",
     voiceWinner: "赢家是{winner}。",
     voiceRoundStart: "游戏开始。",
+    voiceMustDraw: "无牌可出，你要先摸牌。",
     voiceOnConfirm: "语音播报已开启。",
     specialPlaying: "{card} 正在打出",
     flyingCard: "{player} 出牌",
@@ -381,6 +383,7 @@ const state = {
   directionNotice: null,
   dealingTarget: null,
   dealingCardNumber: 0,
+  mustDrawVoiceKey: "",
   isLogOpen: false,
   musicEnabled: true,
   voiceEnabled: true,
@@ -1321,6 +1324,40 @@ function speakWinnerNarration(winnerIndex) {
   });
 }
 
+function humanMustDrawVoiceKey() {
+  if (
+    state.phase !== "playing" ||
+    state.isRulesOpen ||
+    state.isAnimating ||
+    state.currentPlayer !== HUMAN_INDEX ||
+    state.drawnThisTurn ||
+    playableCardsFor(HUMAN_INDEX).length
+  ) {
+    return "";
+  }
+
+  const handKey = players[HUMAN_INDEX].hand.map((card) => card.id).join("-");
+  return `${state.language}:${state.round}:${state.discard.length}:${handKey}`;
+}
+
+function announceHumanMustDrawIfNeeded() {
+  const key = humanMustDrawVoiceKey();
+  if (!key) {
+    if (state.phase !== "playing" || state.currentPlayer !== HUMAN_INDEX || state.drawnThisTurn) {
+      state.mustDrawVoiceKey = "";
+    }
+    return;
+  }
+
+  if (state.mustDrawVoiceKey === key || !canSpeakNow()) return;
+  state.mustDrawVoiceKey = key;
+  speakText(t("voiceMustDraw"), {
+    interrupt: false,
+    rate: state.language === "zh" ? 0.98 : 0.9,
+    volume: VOICE_CONFIRM_VOLUME,
+  });
+}
+
 function playRoundWinnerCue(winnerIndex) {
   playSfx(getVictoryCueDataUrl(), winnerIndex === HUMAN_INDEX ? 0.86 : 0.66);
   speakWinnerNarration(winnerIndex);
@@ -2180,6 +2217,7 @@ function render() {
   renderDirectionNotice();
   renderSuitModal();
   renderRoundModal();
+  announceHumanMustDrawIfNeeded();
 }
 
 function updateArenaOverlayFrame() {
@@ -2990,7 +3028,10 @@ els.voiceButton.addEventListener("click", () => {
     setBackgroundMusicVolume(MUSIC_VOLUME);
   }
   updateVoiceButton();
-  if (state.voiceEnabled) announceVoiceReady();
+  if (state.voiceEnabled) {
+    announceVoiceReady();
+    window.setTimeout(announceHumanMustDrawIfNeeded, 260);
+  }
 });
 els.languageButton.addEventListener("click", () => {
   state.language = state.language === "en" ? "zh" : "en";
