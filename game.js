@@ -2608,6 +2608,7 @@ function renderCenter() {
   els.drawButton.classList.toggle("is-draw-priority", canDrawNow);
   els.centerTable.classList.toggle("is-draw-priority", canDrawNow);
   els.arena.classList.toggle("is-draw-priority", canDrawNow);
+  els.handZone.classList.toggle("is-draw-pass-through", canDrawNow);
 }
 
 function renderHand() {

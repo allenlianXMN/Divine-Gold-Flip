@@ -308,7 +308,7 @@ h1 {
 }
 
 .arena.is-draw-priority {
-  z-index: 88;
+  z-index: 11;
 }
 
 .deal-banner {
@@ -1748,6 +1748,11 @@ button.card.playable:hover:not(:disabled) {
   border-radius: 8px;
   background: rgba(255, 248, 236, 0.74);
   box-shadow: 0 12px 28px rgba(10, 31, 24, 0.18);
+}
+
+.hand-zone.is-draw-pass-through {
+  z-index: 12;
+  pointer-events: none;
 }
 
 .hand-zone.is-expanded {
