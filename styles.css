@@ -307,6 +307,10 @@ h1 {
   overflow: hidden;
 }
 
+.arena.is-draw-priority {
+  z-index: 88;
+}
+
 .deal-banner {
   position: absolute;
   left: 50%;
@@ -780,6 +784,10 @@ h1 {
   background: rgba(255, 248, 236, 0.12);
 }
 
+.center-table.is-draw-priority {
+  z-index: 89;
+}
+
 .pile-row {
   width: 100%;
   display: grid;
@@ -901,6 +909,7 @@ h1 {
   font-weight: 900;
   line-height: 1.35;
   text-align: center;
+  pointer-events: none;
 }
 
 .card-stage.has-special .special-effect {
@@ -992,6 +1001,8 @@ h1 {
 }
 
 .action-bar {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
@@ -1031,6 +1042,17 @@ h1 {
 
 #drawButton:hover:not(:disabled) {
   background: linear-gradient(145deg, #ff7db0, #e23582);
+}
+
+#drawButton.is-draw-priority {
+  position: relative;
+  z-index: 90;
+  pointer-events: auto;
+  isolation: isolate;
+  box-shadow:
+    0 0 0 8px rgba(255, 106, 162, 0.16),
+    0 16px 28px rgba(216, 41, 112, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .action-button:disabled {

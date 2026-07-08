@@ -2601,9 +2601,13 @@ function renderCenter() {
 
   const isHumanTurn = state.phase === "playing" && !state.isRulesOpen && state.currentPlayer === HUMAN_INDEX;
   const hasPlayable = players[HUMAN_INDEX].hand.some(canPlay);
-  els.drawButton.disabled = state.isRulesOpen || state.isAnimating || !isHumanTurn || state.drawnThisTurn || hasPlayable;
+  const canDrawNow = isHumanTurn && !state.isAnimating && !state.drawnThisTurn && !hasPlayable;
+  els.drawButton.disabled = !canDrawNow;
   els.drawButton.title = isHumanTurn && hasPlayable ? t("drawDisabledTitle") : "";
-  els.drawButton.classList.toggle("primary", isHumanTurn && !hasPlayable);
+  els.drawButton.classList.toggle("primary", canDrawNow);
+  els.drawButton.classList.toggle("is-draw-priority", canDrawNow);
+  els.centerTable.classList.toggle("is-draw-priority", canDrawNow);
+  els.arena.classList.toggle("is-draw-priority", canDrawNow);
 }
 
 function renderHand() {
