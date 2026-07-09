@@ -1,6 +1,6 @@
 # Divine Gold Flip
 
-Divine Gold Flip is a single-player browser card game inspired by matching-card and direction-changing party games. One human player plays against three AI opponents, and round scores are saved locally in the browser.
+Divine Gold Flip is a single-player browser card game inspired by matching-card and direction-changing party games. One human player plays against three AI opponents, and cash totals are saved locally in the browser.
 
 The project is implemented as a pure front-end static website, so it can run directly from `index.html` or be published through GitLab Pages without a backend service.
 
@@ -12,7 +12,7 @@ Playable link: [Divine Gold Flip](http://allen-lian-divine-gold-flip-57d623.page
 
 Players take turns playing cards that match the active suit or active number. Big Jokers can be played anytime and choose the next active suit. Little Jokers reverse the turn direction. The divine beast cards, Azure Dragon, White Tiger, and Vermilion Bird, act as pass-style substitutes for normal 1-9 cards: they do not change the active suit, active number, or direction.
 
-The first player to empty their hand wins the round and gains 1 point. The game continues across rounds, and scores persist in browser local storage.
+The first player to empty their hand wins the round and gains 10$. The game continues across rounds, and cash totals persist in browser local storage.
 
 ## Screenshots
 
@@ -90,7 +90,7 @@ After the `pages` job succeeds, make sure project Pages access is set to Everyon
 - Azure Dragon, White Tiger, and Vermilion Bird can be played as 1-9 number-card substitutes only. They do not change the active suit, active number, or direction; the next player still follows the previous active suit and number.
 - Little Jokers can be played on your turn as reverse cards. They immediately reverse the play direction and keep the active suit and active number unchanged.
 - If a player has no legal card, they must draw 1 card. If the drawn card is playable, it can be played immediately.
-- The first player to empty their hand wins the round and gains 1 point. Scores accumulate and are stored in local storage.
+- The first player to empty their hand wins the round and gains 10$. Cash totals accumulate and are stored in local storage.
 - The UI uses playing-card styling: number cards show ranks 1-9, and Big/Little Jokers use illustrated Joker card faces.
 - AI players pause before acting, and played cards animate from their seat to the discard area so the source is clear.
 - Big Jokers, Little Jokers, and divine beast cards are displayed in a separate special-card area with clear effect feedback.

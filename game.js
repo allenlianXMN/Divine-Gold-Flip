@@ -7,7 +7,9 @@ const SUITS = [
 
 const SUIT_BY_ID = Object.fromEntries(SUITS.map((suit) => [suit.id, suit]));
 const DEFAULT_LANGUAGE = "zh";
-const SCORE_KEY = "divine-gold-flip:scores";
+const LEGACY_SCORE_KEY = "divine-gold-flip:scores";
+const SCORE_KEY = "divine-gold-flip:dollar-scores";
+const WIN_REWARD_DOLLARS = 10;
 const PLAYER_COUNT = 4;
 const HUMAN_INDEX = 0;
 const AI_THINK_DELAY = 2600;
@@ -76,7 +78,7 @@ const TEXT = {
     rulesButton: "Rules",
     round: "Round {round}",
     dealer: "Dealer: {player}",
-    score: "{score} pts",
+    score: "{score}$",
     handCount: "Cards {count}",
     cardCount: "{count} cards",
     cardCountOne: "{count} card",
@@ -126,7 +128,7 @@ const TEXT = {
     statusPaused: "Rules open · game paused · active {suit}",
     statusWelcome: "Welcome · press Start Game",
     statusDealing: "Dealing cards · {player} card {card} of 5",
-    statusRoundOver: "{player} won; score has been added",
+    statusRoundOver: "{player} won; 10$ has been added",
     statusThinking: "{player} is thinking · active {suit}",
     statusPlaying: "{player} is playing · active {suit}",
     statusTurn: "{player}'s turn · active {suit}",
@@ -141,8 +143,8 @@ const TEXT = {
     hintPlayable: "Click a highlighted card to play it.",
     hintMustDraw: "No playable card. You must draw 1 card.",
     drawDisabledTitle: "You have a playable card, so you cannot draw",
-    roundResultText: "Score: {scores}",
-    scorePair: "{player} {score}",
+    roundResultText: "Cash: {scores}",
+    scorePair: "{player} {score}$",
     suitChoiceLabel: "{symbol} {suit}",
     bigJoker: "Big Joker",
     littleJoker: "Little Joker",
@@ -206,7 +208,7 @@ const TEXT = {
       ["Playing Cards", "Number cards must match the active suit or the active number. If you have no legal card, you must draw 1 card. A playable drawn card can be played immediately."],
       ["Special Cards", "Big Joker can be played anytime and choose the next active suit. Azure Dragon, White Tiger, and Vermilion Bird can be played as 1-9 number-card substitutes only: they do not change suit, number, or direction, so the next player still follows the previous active suit and number."],
       ["Little Joker", "Little Joker can be played on your turn as a reverse card. It reverses direction immediately and keeps the current active suit and number unchanged."],
-      ["Winning", "The first player to empty their hand wins the round and gains 1 point. Scores keep accumulating."],
+      ["Winning", "The first player to empty their hand wins the round and gains 10$. Cash keeps accumulating."],
     ],
   },
   zh: {
@@ -226,7 +228,7 @@ const TEXT = {
     rulesButton: "规则",
     round: "第 {round} 局",
     dealer: "庄家: {player}",
-    score: "{score} 分",
+    score: "{score}$",
     handCount: "手牌 {count}",
     cardCount: "{count} 张",
     cardCountOne: "{count} 张",
@@ -276,7 +278,7 @@ const TEXT = {
     statusPaused: "规则打开 · 游戏暂停 · 当前 {suit}",
     statusWelcome: "欢迎 · 点击开始游戏",
     statusDealing: "正在发牌 · {player} 第 {card}/5 张",
-    statusRoundOver: "{player} 获胜，比分已累计",
+    statusRoundOver: "{player} 获胜，10$ 已累计",
     statusThinking: "{player} 正在思考 · 当前 {suit}",
     statusPlaying: "{player} 正在出牌 · 当前 {suit}",
     statusTurn: "轮到 {player} · 当前 {suit}",
@@ -291,8 +293,8 @@ const TEXT = {
     hintPlayable: "点击高亮牌出牌。",
     hintMustDraw: "无牌可出，必须摸 1 张。",
     drawDisabledTitle: "有可出的牌时不能摸牌",
-    roundResultText: "当前比分: {scores}",
-    scorePair: "{player} {score}",
+    roundResultText: "当前奖金: {scores}",
+    scorePair: "{player} {score}$",
     suitChoiceLabel: "{symbol} {suit}",
     bigJoker: "大王",
     littleJoker: "小王",
@@ -356,7 +358,7 @@ const TEXT = {
       ["出牌规则", "数字牌必须匹配当前花色或当前生效数字。没有可出牌时必须摸 1 张，刚摸到的牌若可出可以立刻打出。"],
       ["特殊牌", "大王可任意打出，并指定下一轮花色。青龙、白虎、朱雀只能作为 1-9 数字普通牌的替代牌：不改变花色、不改变数字、不改变方向，相当于跳过自己，下一位仍沿用上一家的花色和数字。"],
       ["小王", "小王在自己的回合可作为反转牌打出，打出后立即反转方向，并继续沿用当前花色和数字。"],
-      ["胜负", "率先打空手牌者本局获胜并获得 1 分。分数会持续累计，不清零。"],
+      ["胜负", "率先打空手牌者本局获胜并获得 10$。奖金会持续累计，不清零。"],
     ],
   },
 };
@@ -558,10 +560,13 @@ function escapeHtml(value) {
 
 function loadScores() {
   try {
-    const saved = JSON.parse(localStorage.getItem(SCORE_KEY) || "[]");
+    const savedCash = localStorage.getItem(SCORE_KEY);
+    const saved = JSON.parse(savedCash || localStorage.getItem(LEGACY_SCORE_KEY) || "[]");
+    const multiplier = savedCash ? 1 : WIN_REWARD_DOLLARS;
     players.forEach((player, index) => {
-      player.score = Number.isFinite(saved[index]) ? saved[index] : 0;
+      player.score = Number.isFinite(saved[index]) ? saved[index] * multiplier : 0;
     });
+    if (!savedCash) saveScores();
   } catch {
     players.forEach((player) => {
       player.score = 0;
@@ -2081,7 +2086,7 @@ function endRound(winnerIndex) {
   state.winnerIndex = winnerIndex;
   state.aiThinkingIndex = null;
   state.isAnimating = false;
-  players[winnerIndex].score += 1;
+  players[winnerIndex].score += WIN_REWARD_DOLLARS;
   saveScores();
   addLog("winner", { playerIndex: winnerIndex });
   playRoundWinnerCue(winnerIndex);

@@ -49,8 +49,8 @@ The deck contains 55 cards:
 ### Scoring
 
 - The first player to empty their hand wins the round.
-- The winner gains 1 point.
-- Scores accumulate across rounds and are stored in local storage.
+- The winner gains 10$.
+- Cash totals accumulate across rounds and are stored in local storage.
 
 ## Scope Definition
 
@@ -58,7 +58,7 @@ The deck contains 55 cards:
 
 - Single-player browser gameplay.
 - One human player versus three AI players.
-- Complete deck, turn, draw, discard, scoring, and round-reset logic.
+- Complete deck, turn, draw, discard, cash reward, and round-reset logic.
 - Legal move validation.
 - AI card choice and delayed AI turns.
 - Card play animations.
@@ -87,7 +87,7 @@ The deck contains 55 cards:
 - Played cards must animate from the playing seat to the table.
 - Special cards must show clear feedback for their effects.
 - The current player and direction must be visible.
-- Scores must remain available after a page refresh.
+- Cash totals must remain available after a page refresh.
 - The rules panel must pause gameplay while open.
 - The music button must start and stop background music without stacking duplicate tracks.
 - The game must publish as a static GitLab Pages site.
